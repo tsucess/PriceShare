@@ -1,0 +1,387 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
+import Sidebar from '../components/Sidebar';
+
+function Settings() {
+  const navigate = useNavigate();
+  const theme = useTheme();
+  const { showToast } = useToast();
+
+  const [notifications, setNotifications] = useState({
+    priceAlerts: true,
+    newComments: true,
+    weeklyReport: false,
+    govUpdates: true,
+  });
+
+  const [privacy, setPrivacy] = useState({
+    showLocation: true,
+    showProfile: true,
+    allowDM: false,
+  });
+
+  const [twoFA, setTwoFA] = useState(false);
+  const [language, setLanguage] = useState('English');
+  const [region, setRegion] = useState('Lagos');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteInput, setDeleteInput] = useState('');
+
+  const Toggle = ({ value, onChange }) => (
+    <div
+      onClick={() => onChange(!value)}
+      style={{
+        width: '44px', height: '24px', borderRadius: '12px', cursor: 'pointer',
+        background: value ? theme.accent : theme.cardBorder,
+        position: 'relative', transition: 'all 0.25s', flexShrink: 0,
+      }}
+    >
+      <div style={{
+        position: 'absolute', top: '3px',
+        left: value ? '23px' : '3px',
+        width: '18px', height: '18px', borderRadius: '50%',
+        background: value ? '#0a0a0f' : theme.textMuted,
+        transition: 'all 0.25s',
+      }} />
+    </div>
+  );
+
+  const Section = ({ title, children }) => (
+    <div style={{
+      background: theme.card, border: `1px solid ${theme.cardBorder}`,
+      borderRadius: '16px', overflow: 'hidden', marginBottom: '16px',
+      transition: 'all 0.3s'
+    }}>
+      <div style={{
+        padding: '14px 18px', borderBottom: `1px solid ${theme.cardBorder}`,
+        fontSize: '11px', fontWeight: 700, color: theme.textMuted,
+        letterSpacing: '1.5px', textTransform: 'uppercase'
+      }}>{title}</div>
+      {children}
+    </div>
+  );
+
+  const Row = ({ icon, label, desc, right }) => (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '16px 18px', borderBottom: `1px solid ${theme.cardBorder}`,
+      gap: '12px',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1 }}>
+        <span style={{ fontSize: '20px', width: '28px', textAlign: 'center' }}>{icon}</span>
+        <div>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: theme.text }}>{label}</div>
+          {desc && <div style={{ fontSize: '12px', color: theme.textMuted, marginTop: '2px' }}>{desc}</div>}
+        </div>
+      </div>
+      <div style={{ flexShrink: 0 }}>{right}</div>
+    </div>
+  );
+
+  const selectStyle = {
+    padding: '6px 10px', borderRadius: '8px', fontSize: '13px',
+    border: `1px solid ${theme.cardBorder}`, background: theme.pill,
+    color: theme.text, outline: 'none', cursor: 'pointer',
+  };
+
+  return (
+    <div style={{
+      display: 'flex', minHeight: '100vh', background: theme.bg,
+      fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
+      transition: 'all 0.3s', overflowX: 'hidden'
+    }}>
+      <Sidebar />
+
+      <main style={{ flex: 1, padding: '24px', overflowX: 'hidden', maxWidth: '600px' }}>
+
+        {/* HEADER */}
+        <div style={{ marginBottom: '28px' }}>
+          <div style={{ fontSize: '10px', color: theme.textMuted, letterSpacing: '3px', textTransform: 'uppercase', marginBottom: '6px' }}>Account</div>
+          <h1 style={{ fontSize: 'clamp(20px, 5vw, 28px)', fontWeight: 800, color: theme.text, margin: 0 }}>
+            Your <span style={{ color: theme.accent }}>Settings</span>
+          </h1>
+        </div>
+
+        {/* PROFILE */}
+        <Section title="Profile">
+          <div style={{ padding: '18px', display: 'flex', alignItems: 'center', gap: '16px', borderBottom: `1px solid ${theme.cardBorder}` }}>
+            <div style={{
+              width: '60px', height: '60px', borderRadius: '50%', flexShrink: 0,
+              background: 'linear-gradient(135deg, #00e676, #00b0ff)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '18px', fontWeight: 800, color: '#0a0a0f',
+            }}>CO</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: theme.text }}>Chidi Okeke</div>
+              <div style={{ fontSize: '12px', color: theme.textMuted, marginTop: '2px' }}>chidi@example.com</div>
+              <div style={{ fontSize: '12px', color: theme.textMuted }}>📍 Lagos, Nigeria</div>
+            </div>
+            <button
+              onClick={() => showToast('Profile editing coming soon! 🚧', 'info')}
+              style={{
+                padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 700,
+                border: `1px solid ${theme.accent}`, background: 'transparent',
+                color: theme.accent, cursor: 'pointer'
+              }}>Edit</button>
+          </div>
+          <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+            {[
+              { label: 'Posts', value: '3' },
+              { label: 'Likes', value: '73' },
+              { label: 'Comments', value: '16' },
+            ].map((s) => (
+              <div key={s.label} style={{ textAlign: 'center', background: theme.pill, borderRadius: '10px', padding: '12px 8px' }}>
+                <div style={{ fontSize: '18px', fontWeight: 800, color: theme.accent }}>{s.value}</div>
+                <div style={{ fontSize: '11px', color: theme.textMuted, marginTop: '3px' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        {/* APPEARANCE */}
+        <Section title="Appearance">
+          <Row
+            icon={theme.dark ? '🌙' : '☀️'}
+            label="Dark Mode"
+            desc={theme.dark ? 'Currently using dark theme' : 'Currently using light theme'}
+            right={
+              <Toggle value={theme.dark} onChange={() => {
+                theme.toggleTheme();
+                showToast(theme.dark ? 'Light mode on ☀️' : 'Dark mode on 🌙', 'info');
+              }} />
+            }
+          />
+        </Section>
+
+        {/* NOTIFICATIONS */}
+        <Section title="Notifications">
+          <Row icon="🔔" label="Price Alerts" desc="Get notified when prices spike in your area"
+            right={<Toggle value={notifications.priceAlerts} onChange={(v) => {
+              setNotifications({ ...notifications, priceAlerts: v });
+              showToast(v ? 'Price alerts enabled 🔔' : 'Price alerts disabled', v ? 'success' : 'info');
+            }} />}
+          />
+          <Row icon="💬" label="New Comments" desc="When someone comments on your post"
+            right={<Toggle value={notifications.newComments} onChange={(v) => {
+              setNotifications({ ...notifications, newComments: v });
+              showToast(v ? 'Comment notifications on 💬' : 'Comment notifications off', v ? 'success' : 'info');
+            }} />}
+          />
+          <Row icon="📊" label="Weekly Report" desc="Summary of price trends in your state"
+            right={<Toggle value={notifications.weeklyReport} onChange={(v) => {
+              setNotifications({ ...notifications, weeklyReport: v });
+              showToast(v ? 'Weekly report enabled 📊' : 'Weekly report disabled', v ? 'success' : 'info');
+            }} />}
+          />
+          <Row icon="🏛️" label="Government Updates" desc="Updates on reported price gouging cases"
+            right={<Toggle value={notifications.govUpdates} onChange={(v) => {
+              setNotifications({ ...notifications, govUpdates: v });
+              showToast(v ? 'Government updates on 🏛️' : 'Government updates off', v ? 'success' : 'info');
+            }} />}
+          />
+        </Section>
+
+        {/* PRIVACY */}
+        <Section title="Privacy & Security">
+          <Row icon="📍" label="Show My Location" desc="Others can see which city your reports are from"
+            right={<Toggle value={privacy.showLocation} onChange={(v) => {
+              setPrivacy({ ...privacy, showLocation: v });
+              showToast(v ? 'Location visible to others 📍' : 'Location hidden', v ? 'success' : 'info');
+            }} />}
+          />
+          <Row icon="👤" label="Public Profile" desc="Anyone can view your submitted posts"
+            right={<Toggle value={privacy.showProfile} onChange={(v) => {
+              setPrivacy({ ...privacy, showProfile: v });
+              showToast(v ? 'Profile is now public 👤' : 'Profile is now private', v ? 'success' : 'info');
+            }} />}
+          />
+          <Row icon="✉️" label="Allow Direct Messages" desc="Let other users message you"
+            right={<Toggle value={privacy.allowDM} onChange={(v) => {
+              setPrivacy({ ...privacy, allowDM: v });
+              showToast(v ? 'Direct messages enabled ✉️' : 'Direct messages disabled', v ? 'success' : 'info');
+            }} />}
+          />
+          <Row icon="🔒" label="Change Password" desc="Update your account password"
+            right={
+              <button
+                onClick={() => showToast('Password change coming soon! 🚧', 'info')}
+                style={{
+                  padding: '7px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700,
+                  border: `1px solid ${theme.cardBorder}`, background: 'transparent',
+                  color: theme.textMuted, cursor: 'pointer'
+                }}>Update</button>
+            }
+          />
+        </Section>
+
+        {/* TWO-FACTOR AUTH */}
+        <Section title="Two-Factor Authentication">
+          <Row icon="🛡️" label="Enable 2FA"
+            desc={twoFA ? 'Your account has an extra layer of protection' : 'Add an extra layer of security to your account'}
+            right={<Toggle value={twoFA} onChange={(v) => {
+              setTwoFA(v);
+              showToast(v ? '2FA enabled! Your account is more secure 🛡️' : '2FA disabled', v ? 'success' : 'warning');
+            }} />}
+          />
+          {twoFA && (
+            <div style={{ padding: '16px 18px', background: `${theme.accent}08`, borderBottom: `1px solid ${theme.cardBorder}` }}>
+              <p style={{ fontSize: '13px', color: theme.textMuted, margin: '0 0 12px', lineHeight: 1.6 }}>
+                You'll be asked for a one-time code sent to your phone each time you log in.
+              </p>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => showToast('SMS setup coming soon! 🚧', 'info')}
+                  style={{
+                    padding: '9px 18px', borderRadius: '9px', fontSize: '13px', fontWeight: 700,
+                    background: `linear-gradient(135deg, ${theme.accent}, #00c853)`,
+                    color: '#0a0a0f', border: 'none', cursor: 'pointer'
+                  }}>📱 Set Up via SMS</button>
+                <button
+                  onClick={() => showToast('Auth app setup coming soon! 🚧', 'info')}
+                  style={{
+                    padding: '9px 18px', borderRadius: '9px', fontSize: '13px', fontWeight: 700,
+                    border: `1px solid ${theme.cardBorder}`, background: 'transparent',
+                    color: theme.textMuted, cursor: 'pointer'
+                  }}>Use Auth App</button>
+              </div>
+            </div>
+          )}
+        </Section>
+
+        {/* LANGUAGE & REGION */}
+        <Section title="Language & Region">
+          <Row icon="🌍" label="Language" desc="App display language"
+            right={
+              <select value={language} onChange={(e) => {
+                setLanguage(e.target.value);
+                showToast(`Language set to ${e.target.value} 🌍`, 'success');
+              }} style={selectStyle}>
+                <option>English</option>
+                <option>Hausa</option>
+                <option>Yoruba</option>
+                <option>Igbo</option>
+                <option>Pidgin</option>
+              </select>
+            }
+          />
+          <Row icon="📍" label="Home State" desc="Used for local price comparisons"
+            right={
+              <select value={region} onChange={(e) => {
+                setRegion(e.target.value);
+                showToast(`Home state set to ${e.target.value} 📍`, 'success');
+              }} style={selectStyle}>
+                {['Lagos','Oyo','FCT - Abuja','Kano','Rivers','Kaduna','Anambra','Delta','Ogun','Enugu'].map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            }
+          />
+        </Section>
+
+        {/* ABOUT */}
+        <Section title="About">
+          <Row icon="📱" label="App Version" desc="PriceWatch Nigeria"
+            right={<span style={{ fontSize: '12px', color: theme.textMuted, background: theme.pill, padding: '4px 10px', borderRadius: '6px' }}>v1.0.0</span>}
+          />
+          <Row icon="📄" label="Privacy Policy" desc="Read our data & privacy terms"
+            right={<span style={{ fontSize: '18px', color: theme.textMuted }}>›</span>}
+          />
+          <Row icon="📋" label="Terms of Service" desc="How PriceWatch works legally"
+            right={<span style={{ fontSize: '18px', color: theme.textMuted }}>›</span>}
+          />
+          <Row icon="💬" label="Send Feedback" desc="Help us improve the app"
+            right={
+              <button
+                onClick={() => showToast('Thanks for your interest! Feedback form coming soon 💬', 'info')}
+                style={{
+                  padding: '7px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 700,
+                  border: `1px solid ${theme.cardBorder}`, background: 'transparent',
+                  color: theme.textMuted, cursor: 'pointer'
+                }}>Send</button>
+            }
+          />
+        </Section>
+
+        {/* SIGN OUT */}
+        <button
+          onClick={() => { showToast('Signed out successfully 👋', 'info'); setTimeout(() => navigate('/'), 1000); }}
+          style={{
+            width: '100%', padding: '16px', borderRadius: '14px', fontSize: '15px',
+            fontWeight: 800, border: `1px solid rgba(255,77,109,0.3)`,
+            background: 'rgba(255,77,109,0.08)', color: '#ff4d6d',
+            cursor: 'pointer', transition: 'all 0.2s', marginBottom: '16px'
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,77,109,0.15)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,77,109,0.08)'}
+        >🚪 Sign Out</button>
+
+        {/* DELETE ACCOUNT */}
+        {!showDeleteConfirm ? (
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            style={{
+              width: '100%', padding: '16px', borderRadius: '14px', fontSize: '15px',
+              fontWeight: 800, border: `1px solid rgba(255,77,109,0.15)`,
+              background: 'transparent', color: theme.textMuted,
+              cursor: 'pointer', transition: 'all 0.2s', marginBottom: '40px'
+            }}
+          >🗑️ Delete Account</button>
+        ) : (
+          <div style={{
+            background: 'rgba(255,77,109,0.06)', border: '1px solid rgba(255,77,109,0.3)',
+            borderRadius: '16px', padding: '20px', marginBottom: '40px'
+          }}>
+            <p style={{ fontSize: '15px', fontWeight: 700, color: '#ff4d6d', marginBottom: '8px' }}>⚠️ Delete your account?</p>
+            <p style={{ fontSize: '13px', color: theme.textMuted, marginBottom: '16px', lineHeight: 1.6 }}>
+              This will permanently delete your account, all your posts, likes, and comments. This action <strong style={{ color: '#ff4d6d' }}>cannot be undone</strong>.
+            </p>
+            <p style={{ fontSize: '13px', color: theme.textMuted, marginBottom: '8px' }}>
+              Type <strong style={{ color: theme.text }}>DELETE</strong> to confirm:
+            </p>
+            <input
+              type="text"
+              placeholder="Type DELETE here"
+              value={deleteInput}
+              onChange={(e) => setDeleteInput(e.target.value)}
+              style={{
+                width: '100%', padding: '12px 14px', borderRadius: '10px',
+                fontSize: '14px', background: theme.input, border: `1px solid rgba(255,77,109,0.4)`,
+                color: theme.text, outline: 'none', marginBottom: '14px',
+                fontFamily: 'inherit', boxSizing: 'border-box'
+              }}
+            />
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => { setShowDeleteConfirm(false); setDeleteInput(''); }}
+                style={{
+                  flex: 1, padding: '12px', borderRadius: '10px', fontSize: '13px',
+                  fontWeight: 700, border: `1px solid ${theme.cardBorder}`,
+                  background: 'transparent', color: theme.textMuted, cursor: 'pointer'
+                }}
+              >Cancel</button>
+              <button
+                onClick={() => {
+                  if (deleteInput === 'DELETE') {
+                    showToast('Account deleted 👋', 'error');
+                    setTimeout(() => navigate('/'), 1200);
+                  }
+                }}
+                style={{
+                  flex: 1, padding: '12px', borderRadius: '10px', fontSize: '13px',
+                  fontWeight: 800, border: 'none',
+                  cursor: deleteInput === 'DELETE' ? 'pointer' : 'not-allowed',
+                  background: deleteInput === 'DELETE' ? '#ff4d6d' : 'rgba(255,77,109,0.2)',
+                  color: deleteInput === 'DELETE' ? '#fff' : 'rgba(255,77,109,0.4)',
+                  transition: 'all 0.2s'
+                }}
+              >Delete Forever</button>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default Settings;
