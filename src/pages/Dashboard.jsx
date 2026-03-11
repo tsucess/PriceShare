@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import Sidebar from '../components/Sidebar';
 import BottomSheet from '../components/BottomSheet';
 import HapticButton from '../components/HapticButton';
+import SkeletonCard, { SkeletonStat } from '../components/SkeletonCard';
 
 const dummyPosts = [
   {
@@ -142,10 +143,16 @@ function Dashboard() {
   const theme = useTheme();
   const { showToast } = useToast();
   const isMobile = useIsMobile();
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('posts');
   const [liked, setLiked] = useState({});
   const [posts, setPosts] = useState(dummyPosts);
   const [bottomSheetPost, setBottomSheetPost] = useState(null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 1500);
+    return () => clearTimeout(t);
+  }, []);
 
   const handleLike = (id) => {
     const isLiked = liked[id];
@@ -194,10 +201,16 @@ function Dashboard() {
 
         {/* STAT CARDS */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '24px' }}>
-          <StatCard icon="📸" target={3}  label="Posts Submitted" color={theme.accent} />
-          <StatCard icon="❤️" target={73} label="Total Likes"     color="#ff4d6d" />
-          <StatCard icon="💬" target={16} label="Comments"        color="#00b0ff" />
-          <StatCard icon="📍" target={3}  label="Locations"       color="#ffd600" />
+          {loading ? (
+            <><SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat /></>
+          ) : (
+            <>
+              <StatCard icon="📸" target={3}  label="Posts Submitted" color={theme.accent} />
+              <StatCard icon="❤️" target={73} label="Total Likes"     color="#ff4d6d" />
+              <StatCard icon="💬" target={16} label="Comments"        color="#00b0ff" />
+              <StatCard icon="📍" target={3}  label="Locations"       color="#ffd600" />
+            </>
+          )}
         </div>
 
         {/* TABS */}
@@ -216,7 +229,9 @@ function Dashboard() {
 
         {/* POSTS */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: '16px' }}>
-          {filteredPosts.length === 0 ? (
+          {loading ? (
+            <><SkeletonCard /><SkeletonCard /><SkeletonCard /></>
+          ) : filteredPosts.length === 0 ? (
             <EmptyState
               tab={activeTab}
               theme={theme}
@@ -240,7 +255,12 @@ function Dashboard() {
                   <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: '0 0 6px' }}>{post.product}</h3>
                   <p style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '3px' }}>📍 {post.location}, {post.state}</p>
                   <p style={{ fontSize: '11px', color: theme.textDim, marginBottom: '12px' }}>🗓️ {post.date}</p>
-                  <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '8px' }}>
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
+                    style={{ display: 'flex', gap: '8px' }}
+                  >
                     <HapticButton
                       onClick={() => handleLike(post.id)}
                       style={{

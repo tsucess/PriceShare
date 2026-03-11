@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { LayoutDashboard, Rss, PlusSquare, BarChart2, Settings } from 'lucide-react';
@@ -15,6 +15,13 @@ function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
+  const [bouncing, setBouncing] = useState(null);
+
+  const handleNavClick = (path) => {
+    setBouncing(path);
+    setTimeout(() => setBouncing(null), 400);
+    navigate(path);
+  };
 
   return (
     <>
@@ -50,10 +57,11 @@ function Sidebar() {
           {navItems.map((item) => {
             const active = location.pathname === item.path;
             const Icon = item.icon;
+            const isBouncing = bouncing === item.path;
             return (
               <div
                 key={item.path}
-                onClick={() => navigate(item.path)}
+                onClick={() => handleNavClick(item.path)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '12px',
                   padding: '11px 14px', borderRadius: '10px', cursor: 'pointer',
@@ -62,6 +70,7 @@ function Sidebar() {
                   color: active ? theme.navActiveText : theme.navText,
                   borderLeft: `2px solid ${active ? theme.navActiveBorder : 'transparent'}`,
                   transition: 'all 0.15s',
+                  transform: isBouncing ? 'scale(0.95)' : 'scale(1)',
                 }}
               >
                 <Icon size={17} strokeWidth={active ? 2.5 : 1.8} />
@@ -102,13 +111,10 @@ function Sidebar() {
           transition: 'all 0.3s',
         }}
       >
-        {/* LOGO */}
         <div onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
           <div style={{ fontSize: '11px', letterSpacing: '3px', color: theme.accent, fontWeight: 800, textTransform: 'uppercase' }}>PriceWatch</div>
           <div style={{ fontSize: '9px', color: theme.textMuted, letterSpacing: '2px', textTransform: 'uppercase' }}>Nigeria</div>
         </div>
-
-        {/* AVATAR → Settings */}
         <div
           onClick={() => navigate('/settings')}
           style={{
@@ -132,24 +138,24 @@ function Sidebar() {
           borderTop: `1px solid ${theme.sidebarBorder}`,
           paddingTop: '8px',
           paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
-          transition: 'all 0.3s',
+          transition: 'background 0.3s',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'flex-end' }}>
           {navItems.map((item) => {
             const active = location.pathname === item.path;
             const isPost = item.path === '/post';
+            const isBouncing = bouncing === item.path;
             const Icon = item.icon;
             return (
               <div
                 key={item.path}
-                onClick={() => navigate(item.path)}
+                onClick={() => handleNavClick(item.path)}
                 style={{
                   display: 'flex', flexDirection: 'column', alignItems: 'center',
                   gap: '3px', cursor: 'pointer',
                   padding: '4px 12px',
                   minWidth: '56px',
-                  transition: 'all 0.15s',
                 }}
               >
                 <div style={{
@@ -164,7 +170,13 @@ function Sidebar() {
                   marginTop: isPost ? '-18px' : '0',
                   boxShadow: isPost ? `0 6px 20px ${theme.accent}60` : 'none',
                   border: active && !isPost ? `1px solid ${theme.navActiveBorder}30` : 'none',
-                  transition: 'all 0.15s',
+                  // Bounce animation
+                  transform: isBouncing
+                    ? 'scale(0.82) translateY(3px)'
+                    : active && !isPost ? 'translateY(-2px)' : 'scale(1) translateY(0)',
+                  transition: isBouncing
+                    ? 'transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                    : 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s, color 0.2s',
                 }}>
                   <Icon size={isPost ? 22 : 19} strokeWidth={active || isPost ? 2.5 : 1.8} />
                 </div>
@@ -175,6 +187,7 @@ function Sidebar() {
                     ? theme.accent
                     : active ? theme.navActiveText : theme.navText,
                   marginTop: '1px',
+                  transition: 'color 0.2s',
                 }}>
                   {item.label}
                 </span>

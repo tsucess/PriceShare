@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import Sidebar from '../components/Sidebar';
 import HapticButton from '../components/HapticButton';
+import { SkeletonRow, SkeletonBlock } from '../components/SkeletonCard';
 
 function Settings() {
   const navigate = useNavigate();
   const theme = useTheme();
   const { showToast } = useToast();
 
+  const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState({
     priceAlerts: true, newComments: true, weeklyReport: false, govUpdates: true,
   });
@@ -21,6 +23,11 @@ function Settings() {
   const [region, setRegion] = useState('Lagos');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 1200);
+    return () => clearTimeout(t);
+  }, []);
 
   const Toggle = ({ value, onChange }) => (
     <div
@@ -102,6 +109,35 @@ function Settings() {
               Your <span style={{ color: theme.accent }}>Settings</span>
             </h1>
           </div>
+
+          {/* SKELETON */}
+          {loading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Profile skeleton */}
+              <div style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '16px', padding: '18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                  <SkeletonBlock width="60px" height="60px" borderRadius="50%" />
+                  <div style={{ flex: 1 }}>
+                    <SkeletonBlock width="40%" height="16px" style={{ marginBottom: '8px' }} />
+                    <SkeletonBlock width="60%" height="12px" delay="0.1s" />
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px' }}>
+                  <SkeletonBlock height="52px" borderRadius="10px" />
+                  <SkeletonBlock height="52px" borderRadius="10px" delay="0.1s" />
+                  <SkeletonBlock height="52px" borderRadius="10px" delay="0.2s" />
+                </div>
+              </div>
+              {/* Section skeletons */}
+              {[1,2,3].map((s) => (
+                <div key={s} style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '16px', overflow: 'hidden' }}>
+                  <SkeletonBlock height="44px" borderRadius="0" style={{ marginBottom: '0' }} />
+                  <SkeletonRow /><SkeletonRow /><SkeletonRow />
+                </div>
+              ))}
+            </div>
+          ) : (
+          <>
 
           {/* PROFILE */}
           <Section title="Profile">
@@ -240,6 +276,9 @@ function Settings() {
               right={<HapticButton onClick={() => showToast('Thanks for your interest! Feedback form coming soon 💬', 'info')} style={ghostBtn}>Send</HapticButton>}
             />
           </Section>
+
+          </>
+          )}
 
           {/* SIGN OUT */}
           <HapticButton

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -13,22 +13,35 @@ import SplashScreen from './components/SplashScreen';
 import OnboardingSlides from './components/OnboardingSlides';
 // import GovReport from './pages/GovReport';
 
+// Scrolls window to top on every route change
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [pathname]);
+  return null;
+}
+
 function AppContent({ showOnboarding, setShowOnboarding }) {
   return (
     <>
+      <ScrollToTop />
       {showOnboarding && (
-        <OnboardingSlides onDone={() => setShowOnboarding(false)} />
+        <OnboardingSlides onDone={() => {
+          localStorage.setItem('pw-onboarded', 'true');
+          setShowOnboarding(false);
+        }} />
       )}
       <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/"          element={<LandingPage />} />
+        <Route path="/login"     element={<LoginPage />} />
+        <Route path="/signup"    element={<SignupPage />} />
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/post" element={<NewPost />} />
-        <Route path="/feed" element={<Feed />} />
-        <Route path="/compare" element={<ComparePrices />} />
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/post/:id" element={<PostDetail />} />
+        <Route path="/post"      element={<NewPost />} />
+        <Route path="/feed"      element={<Feed />} />
+        <Route path="/compare"   element={<ComparePrices />} />
+        <Route path="/settings"  element={<Settings />} />
+        <Route path="/post/:id"  element={<PostDetail />} />
         {/* <Route path="/report" element={<GovReport />} /> */}
       </Routes>
     </>
@@ -36,8 +49,10 @@ function AppContent({ showOnboarding, setShowOnboarding }) {
 }
 
 function App() {
-  const [showSplash, setShowSplash] = useState(true);
-  const [showOnboarding, setShowOnboarding] = useState(true);
+  const hasSeenOnboarding = localStorage.getItem('pw-onboarded') === 'true';
+
+  const [showSplash, setShowSplash]         = useState(!hasSeenOnboarding);
+  const [showOnboarding, setShowOnboarding] = useState(!hasSeenOnboarding);
 
   return (
     <>

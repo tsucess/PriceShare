@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import Sidebar from '../components/Sidebar';
 import HapticButton from '../components/HapticButton';
+import { SkeletonProduct } from '../components/SkeletonCard';
 
 const allProducts = [
   { name: 'Garri (1kg)', category: 'Food & Groceries', reports: [{ market: 'Mile 12 Market', state: 'Lagos', price: 800, user: 'Chidi O.', date: 'March 8, 2026' }, { market: 'Bodija Market', state: 'Oyo', price: 650, user: 'Amaka B.', date: 'March 7, 2026' }, { market: 'Wuse Market', state: 'FCT - Abuja', price: 950, user: 'Emeka T.', date: 'March 6, 2026' }, { market: 'Kantin Kwari', state: 'Kano', price: 600, user: 'Fatima M.', date: 'March 5, 2026' }, { market: 'Idumota Market', state: 'Lagos', price: 1100, user: 'Bola A.', date: 'March 4, 2026' }] },
@@ -33,9 +34,15 @@ function useIsMobile() {
 function ComparePrices() {
   const theme = useTheme();
   const isMobile = useIsMobile();
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sortOrder, setSortOrder] = useState('lowest');
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 1500);
+    return () => clearTimeout(t);
+  }, []);
 
   const filtered = allProducts.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
   const getMin = (r) => Math.min(...r.map((x) => x.price));
@@ -89,7 +96,9 @@ function ComparePrices() {
 
             {/* 1 col mobile, 2 col desktop */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: '14px' }}>
-              {filtered.length === 0 ? (
+              {loading ? (
+              <><SkeletonProduct /><SkeletonProduct /><SkeletonProduct /></>
+            ) : filtered.length === 0 ? (
                 <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px 24px' }}>
                   <div style={{ fontSize: '64px', marginBottom: '16px' }}>🔍</div>
                   <h3 style={{ fontSize: '18px', fontWeight: 700, color: theme.text, marginBottom: '8px' }}>No products found</h3>

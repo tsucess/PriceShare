@@ -20,6 +20,7 @@ function PostDetail() {
   const { showToast } = useToast();
 
   const post = location.state?.post;
+  const [zoomed, setZoomed] = useState(false);
   const [liked, setLiked] = useState(false);
   const [comments, setComments] = useState(post?.comments || []);
   const [commentInput, setCommentInput] = useState('');
@@ -76,7 +77,8 @@ function PostDetail() {
           <img
             src={post.image}
             alt={post.product}
-            style={{ width: '100%', height: '280px', objectFit: 'cover', display: 'block' }}
+            onClick={() => setZoomed(true)}
+            style={{ width: '100%', height: '280px', objectFit: 'cover', display: 'block', cursor: 'zoom-in' }}
           />
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(8,8,15,0.95) 0%, rgba(8,8,15,0.3) 60%, transparent 100%)' }} />
 
@@ -252,6 +254,69 @@ function PostDetail() {
         </div>
 
       </main>
+
+      {/* FULLSCREEN ZOOM OVERLAY */}
+      {zoomed && (
+        <div
+          onClick={() => setZoomed(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 999,
+            background: 'rgba(0,0,0,0.95)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out',
+            animation: 'fadeInZoom 0.25s ease',
+          }}
+        >
+          {/* CLOSE BUTTON */}
+          <button
+            onClick={() => setZoomed(false)}
+            style={{
+              position: 'absolute', top: '20px', right: '20px',
+              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+              color: '#fff', borderRadius: '50%', width: '40px', height: '40px',
+              fontSize: '20px', cursor: 'pointer', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              backdropFilter: 'blur(8px)',
+            }}
+          >×</button>
+
+          {/* PRODUCT LABEL */}
+          <div style={{
+            position: 'absolute', bottom: '32px', left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
+            padding: '8px 20px', borderRadius: '20px',
+            fontSize: '13px', fontWeight: 600, color: '#fff',
+            whiteSpace: 'nowrap',
+          }}>
+            {post.product} — ₦{post.price.toLocaleString()}
+          </div>
+
+          <img
+            src={post.image}
+            alt={post.product}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '95vw', maxHeight: '85vh',
+              objectFit: 'contain', borderRadius: '12px',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.8)',
+              animation: 'scaleInZoom 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            }}
+          />
+
+          <style>{`
+            @keyframes fadeInZoom {
+              from { opacity: 0; }
+              to   { opacity: 1; }
+            }
+            @keyframes scaleInZoom {
+              from { transform: scale(0.85); opacity: 0; }
+              to   { transform: scale(1);    opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
+
     </div>
   );
 }
