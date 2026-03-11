@@ -201,9 +201,9 @@ function Feed() {
   return (
     <div
       style={{ display: 'flex', minHeight: '100vh', background: theme.bg, fontFamily: "'DM Sans', 'Segoe UI', sans-serif", transition: 'all 0.3s', overflowX: 'hidden' }}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
+      onTouchStart={(e) => { if (bottomSheetPost) return; handleTouchStart(e); }}
+      onTouchMove={(e) => { if (bottomSheetPost) return; handleTouchMove(e); }}
+      onTouchEnd={(e) => { if (bottomSheetPost) return; handleTouchEnd(e); }}
     >
       <Sidebar />
 
@@ -385,7 +385,12 @@ function Feed() {
                       <span style={{ fontSize: '11px', background: theme.pill, color: theme.pillText, padding: '3px 10px', borderRadius: '6px' }}>👤 {post.user}</span>
                       <span style={{ fontSize: '11px', color: theme.textDim }}>🕐 {getRelativeTime(post.date)}</span>
                     </div>
-                    <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '8px' }}>
+                    <div
+                    onClick={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
+                    style={{ display: 'flex', gap: '8px' }}
+                  >
                       <HapticButton
                         onClick={() => handleLike(post.id)}
                         style={{ flex: 1, padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, border: `1px solid ${liked[post.id] ? 'rgba(255,77,109,0.4)' : theme.cardBorder}`, background: liked[post.id] ? 'rgba(255,77,109,0.1)' : 'transparent', color: liked[post.id] ? '#ff4d6d' : theme.textMuted }}

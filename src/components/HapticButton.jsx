@@ -3,20 +3,16 @@ import React, { useState } from 'react';
 function HapticButton({ onClick, style, children, disabled }) {
   const [pressed, setPressed] = useState(false);
 
-  const handlePress = () => {
-    if (disabled) return;
-    setPressed(true);
-    setTimeout(() => setPressed(false), 150);
-    if (onClick) onClick();
-  };
-
   return (
     <div
-      onMouseDown={() => !disabled && setPressed(true)}
-      onMouseUp={handlePress}
-      onMouseLeave={() => setPressed(false)}
-      onTouchStart={() => !disabled && setPressed(true)}
-      onTouchEnd={handlePress}
+      onPointerDown={() => !disabled && setPressed(true)}
+      onPointerUp={() => setPressed(false)}
+      onPointerLeave={() => setPressed(false)}
+      onPointerCancel={() => setPressed(false)}
+      onClick={(e) => {
+        if (disabled) return;
+        if (onClick) onClick(e);
+      }}
       style={{
         ...style,
         transform: pressed ? 'scale(0.94)' : 'scale(1)',
@@ -24,9 +20,11 @@ function HapticButton({ onClick, style, children, disabled }) {
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         userSelect: 'none',
+        WebkitUserSelect: 'none',
         display: style?.display || 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
+        WebkitTapHighlightColor: 'transparent',
       }}
     >
       {children}
