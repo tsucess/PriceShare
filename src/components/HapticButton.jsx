@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 function HapticButton({ onClick, style, children, disabled }) {
   const [pressed, setPressed] = useState(false);
@@ -15,16 +15,16 @@ function HapticButton({ onClick, style, children, disabled }) {
       }}
       style={{
         ...style,
-        transform: pressed ? 'scale(0.94)' : 'scale(1)',
-        transition: 'transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        cursor: disabled ? 'not-allowed' : 'pointer',
+        transform: pressed ? "scale(0.94)" : "scale(1)",
+        transition: "transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-        display: style?.display || 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        WebkitTapHighlightColor: 'transparent',
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        display: style?.display || "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        WebkitTapHighlightColor: "transparent",
       }}
     >
       {children}

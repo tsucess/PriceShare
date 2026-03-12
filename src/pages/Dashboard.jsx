@@ -5,49 +5,10 @@ import { useToast } from '../context/ToastContext';
 import Sidebar from '../components/Sidebar';
 import BottomSheet from '../components/BottomSheet';
 import HapticButton from '../components/HapticButton';
+import { ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react';
 import SkeletonCard, { SkeletonStat } from '../components/SkeletonCard';
+import { getPosts, deletePost as storeDeletePost } from '../utils/postsStore';
 
-const dummyPosts = [
-  {
-    id: 1,
-    product: 'Garri (1kg)',
-    price: 800,
-    location: 'Mile 12 Market',
-    state: 'Lagos',
-    category: 'Food & Groceries',
-    image: 'https://images.unsplash.com/photo-1621956838481-5b13ab190fc1?w=600&q=80',
-    date: 'March 8, 2026',
-    user: 'Chidi O.',
-    likes: 24,
-    comments: ['Great find!', 'Cheaper than my area'],
-  },
-  {
-    id: 2,
-    product: 'Tomatoes (basket)',
-    price: 3500,
-    location: 'Bodija Market',
-    state: 'Oyo',
-    category: 'Vegetables',
-    image: 'https://images.unsplash.com/photo-1546094096-0df4bcaaa337?w=600&q=80',
-    date: 'March 7, 2026',
-    user: 'Chidi O.',
-    likes: 18,
-    comments: ['Wow so expensive!'],
-  },
-  {
-    id: 3,
-    product: 'Chicken (1kg)',
-    price: 2800,
-    location: 'Wuse Market',
-    state: 'Abuja',
-    category: 'Meat & Poultry',
-    image: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?w=600&q=80',
-    date: 'March 6, 2026',
-    user: 'Chidi O.',
-    likes: 31,
-    comments: [],
-  },
-];
 
 function useCountUp(target, duration = 1500) {
   const [count, setCount] = useState(0);
@@ -144,10 +105,13 @@ function Dashboard() {
   const { showToast } = useToast();
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
+  const [profileComplete, setProfileComplete] = useState(localStorage.getItem('pw-profile-complete') === 'true');
   const [activeTab, setActiveTab] = useState('posts');
   const [liked, setLiked] = useState({});
-  const [posts, setPosts] = useState(dummyPosts);
+  const [votes, setVotes] = useState({});
+  const [posts, setPosts] = useState(() => getPosts());
   const [bottomSheetPost, setBottomSheetPost] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 1500);
@@ -160,8 +124,26 @@ function Dashboard() {
     showToast(isLiked ? 'Like removed' : 'Post liked! ❤️', isLiked ? 'info' : 'success');
   };
 
+  const handleVote = (id, type) => {
+    const current = votes[id];
+    if (current === type) {
+      setVotes((p) => ({ ...p, [id]: null }));
+      showToast('Vote removed', 'info');
+    } else {
+      setVotes((p) => ({ ...p, [id]: type }));
+      showToast(type === 'confirm' ? 'Price confirmed! 👍' : 'Price flagged! 👎', type === 'confirm' ? 'success' : 'warning');
+    }
+  };
+
   const handleBottomSheetComment = (id, text) => {
     setPosts((prev) => prev.map((post) => post.id === id ? { ...post, comments: [...post.comments, text] } : post));
+  };
+
+  const handleDelete = (id) => {
+    const updated = storeDeletePost(id);
+    setPosts(updated);
+    setConfirmDelete(null);
+    showToast('Post deleted 🗑️', 'info');
   };
 
   const filteredPosts = posts.filter((post) => {
@@ -181,10 +163,10 @@ function Dashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h1 style={{ fontSize: 'clamp(18px, 5vw, 28px)', fontWeight: 800, color: theme.text, lineHeight: 1.2, margin: 0 }}>
-                Welcome back, <span style={{ color: theme.accent }}>Chidi</span> 👋
+                Welcome back, <span style={{ color: theme.accent }}>User</span> 👋
               </h1>
               <p style={{ color: theme.textMuted, fontSize: '13px', marginTop: '4px' }}>
-                You've submitted <span style={{ color: theme.accent, fontWeight: 600 }}>3 price reports</span>
+                You've submitted <span style={{ color: theme.accent, fontWeight: 600 }}>{posts.length} price reports</span>
               </p>
             </div>
             <HapticButton
@@ -198,6 +180,35 @@ function Dashboard() {
             >+ New Post</HapticButton>
           </div>
         </div>
+
+        {/* COMPLETE PROFILE BANNER */}
+        {!profileComplete && (
+          <div style={{
+            background: `linear-gradient(135deg, ${theme.accent}15, #00b0ff10)`,
+            border: `1px solid ${theme.accent}30`,
+            borderRadius: '14px', padding: '14px 18px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: '12px', marginBottom: '20px', flexWrap: 'wrap',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: '28px', flexShrink: 0 }}>👤</span>
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: 700, color: theme.text, margin: '0 0 2px' }}>Complete your profile</p>
+                <p style={{ fontSize: '12px', color: theme.textMuted, margin: 0 }}>Add your photo, bio and location so others can trust your reports.</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              <HapticButton
+                onClick={() => navigate('/profile')}
+                style={{ padding: '8px 16px', borderRadius: '9px', fontSize: '12px', fontWeight: 700, background: `linear-gradient(135deg, ${theme.accent}, #00c853)`, color: '#0a0a0f', border: 'none' }}
+              >Set Up</HapticButton>
+              <HapticButton
+                onClick={() => { localStorage.setItem('pw-profile-complete', 'true'); setProfileComplete(true); }}
+                style={{ padding: '8px 12px', borderRadius: '9px', fontSize: '12px', fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted }}
+              >Later</HapticButton>
+            </div>
+          </div>
+        )}
 
         {/* STAT CARDS */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '24px' }}>
@@ -252,35 +263,76 @@ function Dashboard() {
                   </div>
                 </div>
                 <div style={{ padding: '14px' }}>
-                  <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: '0 0 6px' }}>{post.product}</h3>
-                  <p style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '3px' }}>📍 {post.location}, {post.state}</p>
-                  <p style={{ fontSize: '11px', color: theme.textDim, marginBottom: '12px' }}>🗓️ {post.date}</p>
+                  {/* CONFIRM DELETE PROMPT */}
+                  {confirmDelete === post.id ? (
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      style={{ background: 'rgba(255,77,109,0.06)', border: '1px solid rgba(255,77,109,0.25)', borderRadius: '10px', padding: '12px', marginBottom: '10px' }}
+                    >
+                      <p style={{ fontSize: '13px', fontWeight: 700, color: '#ff4d6d', margin: '0 0 4px' }}>🗑️ Delete this post?</p>
+                      <p style={{ fontSize: '12px', color: theme.textMuted, margin: '0 0 12px', lineHeight: 1.5 }}>This cannot be undone. All likes, votes and comments will be lost.</p>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <HapticButton
+                          onClick={() => handleDelete(post.id)}
+                          style={{ flex: 1, padding: '9px', borderRadius: '9px', fontSize: '13px', fontWeight: 700, background: '#ff4d6d', color: '#fff', border: 'none' }}
+                        >Yes, Delete</HapticButton>
+                        <HapticButton
+                          onClick={() => setConfirmDelete(null)}
+                          style={{ flex: 1, padding: '9px', borderRadius: '9px', fontSize: '13px', fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted }}
+                        >Cancel</HapticButton>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: 0 }}>{post.product}</h3>
+                        <HapticButton
+                          onClick={(e) => { e.stopPropagation(); setConfirmDelete(post.id); }}
+                          style={{ padding: '5px', borderRadius: '7px', border: '1px solid rgba(255,77,109,0.3)', background: 'transparent', color: '#ff4d6d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginLeft: '8px' }}
+                        ><Trash2 size={13} /></HapticButton>
+                      </div>
+                      <p style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '3px' }}>📍 {post.location}, {post.state}</p>
+                      <p style={{ fontSize: '11px', color: theme.textDim, marginBottom: '12px' }}>🗓️ {post.date}</p>
+                    </>
+                  )}
                   <div
                     onClick={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => e.stopPropagation()}
-                    style={{ display: 'flex', gap: '8px' }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
                   >
-                    <HapticButton
-                      onClick={() => handleLike(post.id)}
-                      style={{
-                        flex: 1, padding: '9px', borderRadius: '9px', fontSize: '13px', fontWeight: 700,
-                        border: `1px solid ${liked[post.id] ? 'rgba(255,77,109,0.4)' : theme.cardBorder}`,
-                        background: liked[post.id] ? 'rgba(255,77,109,0.1)' : 'transparent',
-                        color: liked[post.id] ? '#ff4d6d' : theme.textMuted,
-                      }}
-                    >
-                      {liked[post.id] ? '❤️' : '🤍'} {liked[post.id] ? post.likes + 1 : post.likes}
-                    </HapticButton>
-                    <HapticButton
-                      onClick={() => setBottomSheetPost(post)}
-                      style={{
-                        flex: 1, padding: '9px', borderRadius: '9px', fontSize: '13px', fontWeight: 700,
-                        border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted,
-                      }}
-                    >
-                      💬 {post.comments.length}
-                    </HapticButton>
+                    {/* LIKE + COMMENT */}
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <HapticButton
+                        onClick={() => handleLike(post.id)}
+                        style={{ flex: 1, padding: '9px', borderRadius: '9px', fontSize: '13px', fontWeight: 700, border: `1px solid ${liked[post.id] ? 'rgba(255,77,109,0.4)' : theme.cardBorder}`, background: liked[post.id] ? 'rgba(255,77,109,0.1)' : 'transparent', color: liked[post.id] ? '#ff4d6d' : theme.textMuted }}
+                      >
+                        {liked[post.id] ? '❤️' : '🤍'} {liked[post.id] ? post.likes + 1 : post.likes}
+                      </HapticButton>
+                      <HapticButton
+                        onClick={() => setBottomSheetPost(post)}
+                        style={{ flex: 1, padding: '9px', borderRadius: '9px', fontSize: '13px', fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted }}
+                      >
+                        💬 {post.comments.length}
+                      </HapticButton>
+                    </div>
+                    {/* CONFIRM / DENY */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <span style={{ fontSize: '10px', color: theme.textMuted, fontWeight: 600, whiteSpace: 'nowrap' }}>Price accurate?</span>
+                      <HapticButton
+                        onClick={() => handleVote(post.id, 'confirm')}
+                        style={{ flex: 1, padding: '8px', borderRadius: '9px', fontSize: '12px', fontWeight: 700, border: `1px solid ${votes[post.id] === 'confirm' ? 'rgba(0,230,118,0.5)' : theme.cardBorder}`, background: votes[post.id] === 'confirm' ? 'rgba(0,230,118,0.12)' : 'transparent', color: votes[post.id] === 'confirm' ? '#00e676' : theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                      >
+                        <ThumbsUp size={14} /> {post.confirms + (votes[post.id] === 'confirm' ? 1 : 0)}
+                      </HapticButton>
+                      <HapticButton
+                        onClick={() => handleVote(post.id, 'deny')}
+                        style={{ flex: 1, padding: '8px', borderRadius: '9px', fontSize: '12px', fontWeight: 700, border: `1px solid ${votes[post.id] === 'deny' ? 'rgba(255,77,109,0.5)' : theme.cardBorder}`, background: votes[post.id] === 'deny' ? 'rgba(255,77,109,0.12)' : 'transparent', color: votes[post.id] === 'deny' ? '#ff4d6d' : theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                      >
+                        <ThumbsDown size={14} /> {post.denies + (votes[post.id] === 'deny' ? 1 : 0)}
+                      </HapticButton>
+                    </div>
                   </div>
                 </div>
               </div>

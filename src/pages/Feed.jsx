@@ -6,87 +6,9 @@ import Sidebar from '../components/Sidebar';
 import SkeletonCard from '../components/SkeletonCard';
 import BottomSheet from '../components/BottomSheet';
 import HapticButton from '../components/HapticButton';
+import { ThumbsUp, ThumbsDown } from 'lucide-react';
+import { getPosts, savePosts } from '../utils/postsStore';
 
-const dummyPosts = [
-  {
-    id: 1,
-    product: 'Garri (1kg)',
-    price: 800,
-    location: 'Mile 12 Market',
-    state: 'Lagos',
-    category: 'Food & Groceries',
-    image: 'https://images.unsplash.com/photo-1621956838481-5b13ab190fc1?w=600&q=80',
-    date: 'March 8, 2026',
-    user: 'Chidi O.',
-    likes: 24,
-    comments: ['Great find!', 'Cheaper than my area'],
-  },
-  {
-    id: 2,
-    product: 'Tomatoes (basket)',
-    price: 3500,
-    location: 'Bodija Market',
-    state: 'Oyo',
-    category: 'Vegetables',
-    image: 'https://images.unsplash.com/photo-1546094096-0df4bcaaa337?w=600&q=80',
-    date: 'March 7, 2026',
-    user: 'Amaka B.',
-    likes: 18,
-    comments: ['Wow so expensive!'],
-  },
-  {
-    id: 3,
-    product: 'Chicken (1kg)',
-    price: 2800,
-    location: 'Wuse Market',
-    state: 'Abuja',
-    category: 'Meat & Poultry',
-    image: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?w=600&q=80',
-    date: 'March 6, 2026',
-    user: 'Emeka T.',
-    likes: 31,
-    comments: [],
-  },
-  {
-    id: 4,
-    product: 'Rice (50kg bag)',
-    price: 85000,
-    location: 'Kantin Kwari',
-    state: 'Kano',
-    category: 'Food & Groceries',
-    image: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=600&q=80',
-    date: 'March 5, 2026',
-    user: 'Fatima M.',
-    likes: 45,
-    comments: ['Report this seller!'],
-  },
-  {
-    id: 5,
-    product: 'Petrol (litre)',
-    price: 897,
-    location: 'NNPC Station',
-    state: 'Rivers',
-    category: 'Fuel & Energy',
-    image: 'https://images.unsplash.com/photo-1611273426858-450d8e3c9fce?w=600&q=80',
-    date: 'March 4, 2026',
-    user: 'Bola A.',
-    likes: 12,
-    comments: [],
-  },
-  {
-    id: 6,
-    product: 'Paracetamol (pack)',
-    price: 500,
-    location: 'Idumota Market',
-    state: 'Lagos',
-    category: 'Healthcare',
-    image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=600&q=80',
-    date: 'March 3, 2026',
-    user: 'Ngozi K.',
-    likes: 9,
-    comments: ['Cheaper at my chemist'],
-  },
-];
 
 const categoryColors = {
   'Food & Groceries': '#00e676',
@@ -125,11 +47,14 @@ function Feed() {
   const navigate = useNavigate();
   const theme = useTheme();
   const { showToast } = useToast();
+  // For now we treat anyone who came from login/signup as logged in
+  const isLoggedIn = localStorage.getItem('pw-onboarded') === 'true';
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [liked, setLiked] = useState({});
-  const [posts, setPosts] = useState(dummyPosts);
+  const [votes, setVotes] = useState({});
+  const [posts, setPosts] = useState(() => getPosts());
   const [search, setSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filterState, setFilterState] = useState('All States');
@@ -163,10 +88,31 @@ function Feed() {
     setTouchStart(null);
   };
 
+  const requireAuth = (action) => {
+    if (!isLoggedIn) {
+      showToast('Sign up to like, comment and vote! 🚀', 'info');
+      return false;
+    }
+    return true;
+  };
+
   const handleLike = (id) => {
+    if (!requireAuth()) return;
     const isLiked = liked[id];
     setLiked((p) => ({ ...p, [id]: !p[id] }));
     showToast(isLiked ? 'Like removed' : 'Post liked! ❤️', isLiked ? 'info' : 'success');
+  };
+
+  const handleVote = (id, type) => {
+    if (!requireAuth()) return;
+    const current = votes[id];
+    if (current === type) {
+      setVotes((p) => ({ ...p, [id]: null }));
+      showToast('Vote removed', 'info');
+    } else {
+      setVotes((p) => ({ ...p, [id]: type }));
+      showToast(type === 'confirm' ? 'Price confirmed! 👍' : 'Price flagged! 👎', type === 'confirm' ? 'success' : 'warning');
+    }
   };
 
   const handleBottomSheetComment = (id, text) => {
@@ -263,6 +209,35 @@ function Feed() {
             <p style={{ fontSize: '12px', color: theme.textMuted, margin: 0 }}>Rice (50kg) has gone up by 40% in the last 7 days</p>
           </div>
         </div>
+
+        {/* GUEST BANNER */}
+        {!isLoggedIn && (
+          <div style={{
+            background: `linear-gradient(135deg, ${theme.accent}12, #00b0ff10)`,
+            border: `1px solid ${theme.accent}25`,
+            borderRadius: '14px', padding: '14px 18px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: '12px', marginBottom: '20px', flexWrap: 'wrap',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: '26px', flexShrink: 0 }}>👀</span>
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: 700, color: theme.text, margin: '0 0 2px' }}>You're browsing as a guest</p>
+                <p style={{ fontSize: '12px', color: theme.textMuted, margin: 0 }}>Create a free account to like, comment and report prices.</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              <HapticButton
+                onClick={() => navigate('/signup')}
+                style={{ padding: '8px 16px', borderRadius: '9px', fontSize: '12px', fontWeight: 700, background: `linear-gradient(135deg, ${theme.accent}, #00c853)`, color: '#0a0a0f', border: 'none' }}
+              >Join Free</HapticButton>
+              <HapticButton
+                onClick={() => navigate('/login')}
+                style={{ padding: '8px 14px', borderRadius: '9px', fontSize: '12px', fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted }}
+              >Log In</HapticButton>
+            </div>
+          </div>
+        )}
 
         {/* SEARCH BAR */}
         <div style={{ position: 'relative', marginBottom: '12px' }}>
@@ -389,20 +364,39 @@ function Feed() {
                     onClick={(e) => e.stopPropagation()}
                     onTouchStart={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => e.stopPropagation()}
-                    style={{ display: 'flex', gap: '8px' }}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
                   >
-                      <HapticButton
-                        onClick={() => handleLike(post.id)}
-                        style={{ flex: 1, padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, border: `1px solid ${liked[post.id] ? 'rgba(255,77,109,0.4)' : theme.cardBorder}`, background: liked[post.id] ? 'rgba(255,77,109,0.1)' : 'transparent', color: liked[post.id] ? '#ff4d6d' : theme.textMuted }}
-                      >
-                        {liked[post.id] ? '❤️' : '🤍'} {liked[post.id] ? post.likes + 1 : post.likes}
-                      </HapticButton>
-                      <HapticButton
-                        onClick={() => setBottomSheetPost(post)}
-                        style={{ flex: 1, padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted }}
-                      >
-                        💬 {post.comments.length}
-                      </HapticButton>
+                      {/* LIKE + COMMENT */}
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <HapticButton
+                          onClick={() => handleLike(post.id)}
+                          style={{ flex: 1, padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, border: `1px solid ${liked[post.id] ? 'rgba(255,77,109,0.4)' : theme.cardBorder}`, background: liked[post.id] ? 'rgba(255,77,109,0.1)' : 'transparent', color: liked[post.id] ? '#ff4d6d' : theme.textMuted }}
+                        >
+                          {liked[post.id] ? '❤️' : '🤍'} {liked[post.id] ? post.likes + 1 : post.likes}
+                        </HapticButton>
+                        <HapticButton
+                          onClick={() => { if (!requireAuth()) return; setBottomSheetPost(post); }}
+                          style={{ flex: 1, padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted }}
+                        >
+                          💬 {post.comments.length}
+                        </HapticButton>
+                      </div>
+                      {/* CONFIRM / DENY accuracy */}
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '10px', color: theme.textMuted, fontWeight: 600, whiteSpace: 'nowrap' }}>Price accurate?</span>
+                        <HapticButton
+                          onClick={() => handleVote(post.id, 'confirm')}
+                          style={{ flex: 1, padding: '8px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, border: `1px solid ${votes[post.id] === 'confirm' ? 'rgba(0,230,118,0.5)' : theme.cardBorder}`, background: votes[post.id] === 'confirm' ? 'rgba(0,230,118,0.12)' : 'transparent', color: votes[post.id] === 'confirm' ? '#00e676' : theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
+                        >
+                          <ThumbsUp size={14} /> {post.confirms + (votes[post.id] === 'confirm' ? 1 : 0)}
+                        </HapticButton>
+                        <HapticButton
+                          onClick={() => handleVote(post.id, 'deny')}
+                          style={{ flex: 1, padding: '8px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, border: `1px solid ${votes[post.id] === 'deny' ? 'rgba(255,77,109,0.5)' : theme.cardBorder}`, background: votes[post.id] === 'deny' ? 'rgba(255,77,109,0.12)' : 'transparent', color: votes[post.id] === 'deny' ? '#ff4d6d' : theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                        >
+                          <ThumbsDown size={14} /> {post.denies + (votes[post.id] === 'deny' ? 1 : 0)}
+                        </HapticButton>
+                      </div>
                     </div>
                   </div>
                 </div>

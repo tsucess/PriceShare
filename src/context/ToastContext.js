@@ -1,12 +1,12 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import Toast from '../components/Toast';
+import React, { createContext, useContext, useState, useCallback } from "react";
+import Toast from "../components/Toast";
 
 const ToastContext = createContext();
 
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
-  const showToast = useCallback((message, type = 'success') => {
+  const showToast = useCallback((message, type = "success") => {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, message, type }]);
   }, []);

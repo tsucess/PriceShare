@@ -9,6 +9,8 @@ import Feed from './pages/Feed';
 import ComparePrices from './pages/ComparePrices';
 import Settings from './pages/Settings';
 import PostDetail from './pages/PostDetail';
+import ProfilePage from './pages/ProfilePage';
+import NotFoundPage from './pages/NotFoundPage';
 import SplashScreen from './components/SplashScreen';
 import OnboardingSlides from './components/OnboardingSlides';
 // import GovReport from './pages/GovReport';
@@ -42,7 +44,9 @@ function AppContent({ showOnboarding, setShowOnboarding }) {
         <Route path="/compare"   element={<ComparePrices />} />
         <Route path="/settings"  element={<Settings />} />
         <Route path="/post/:id"  element={<PostDetail />} />
+        <Route path="/profile"    element={<ProfilePage />} />
         {/* <Route path="/report" element={<GovReport />} /> */}
+        <Route path="*"           element={<NotFoundPage />} />
       </Routes>
     </>
   );
