@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { getPosts, likePost, votePost } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import SkeletonCard from '../components/SkeletonCard';
 import BottomSheet from '../components/BottomSheet';
 import HapticButton from '../components/HapticButton';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
-import { getPosts, savePosts } from '../utils/postsStore';
 
 
 const categoryColors = {
@@ -23,14 +24,17 @@ const allCategories = ['All Categories', 'Food & Groceries', 'Vegetables', 'Meat
 const suggestions = ['Garri', 'Rice', 'Tomatoes', 'Petrol', 'Chicken', 'Paracetamol'];
 
 function getRelativeTime(dateStr) {
-  const dates = {
-    'March 8, 2026': 2, 'March 7, 2026': 3, 'March 6, 2026': 4,
-    'March 5, 2026': 5, 'March 4, 2026': 6, 'March 3, 2026': 7,
-  };
-  const days = dates[dateStr];
-  if (!days) return dateStr;
+  if (!dateStr) return '';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins  = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  const days  = Math.floor(diff / 86400000);
+  if (mins < 1)   return 'Just now';
+  if (mins < 60)  return `${mins}m ago`;
+  if (hours < 24) return `${hours}h ago`;
   if (days === 1) return 'Yesterday';
-  return `${days} days ago`;
+  if (days < 30)  return `${days} days ago`;
+  return new Date(dateStr).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function useIsMobile() {
@@ -47,14 +51,14 @@ function Feed() {
   const navigate = useNavigate();
   const theme = useTheme();
   const { showToast } = useToast();
-  // For now we treat anyone who came from login/signup as logged in
-  const isLoggedIn = localStorage.getItem('pw-onboarded') === 'true';
+  const { user } = useAuth();
+  const isLoggedIn = !!user;
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [liked, setLiked] = useState({});
-  const [votes, setVotes] = useState({});
-  const [posts, setPosts] = useState(() => getPosts());
+  const [liked, setLiked] = useState({});     // { [postId]: true/false }
+  const [votes, setVotes] = useState({});     // { [postId]: 'confirm'|'deny'|null }
+  const [posts, setPosts] = useState([]);
   const [search, setSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filterState, setFilterState] = useState('All States');
@@ -65,15 +69,31 @@ function Feed() {
   const [pullDistance, setPullDistance] = useState(0);
   const [bottomSheetPost, setBottomSheetPost] = useState(null);
 
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 2000);
-    return () => clearTimeout(t);
-  }, []);
+  const fetchPosts = useCallback(async () => {
+    try {
+      const params = {};
+      if (filterState !== 'All States') params.state = filterState;
+      if (filterCategory !== 'All Categories') params.category = filterCategory;
+      if (search) params.search = search;
+      params.sort = sortBy;
+      const res = await getPosts(params);
+      const data = res.data.data ?? res.data;
+      setPosts(Array.isArray(data) ? data : data.data ?? []);
+    } catch {
+      showToast('Could not load feed. Retrying...', 'warning');
+    }
+  }, [filterState, filterCategory, search, sortBy, showToast]);
 
-  const handleRefresh = () => {
+  useEffect(() => {
+    setLoading(true);
+    fetchPosts().finally(() => setLoading(false));
+  }, [fetchPosts]);
+
+  const handleRefresh = async () => {
     setRefreshing(true);
+    await fetchPosts();
     showToast('Feed refreshed! 🔄', 'success');
-    setTimeout(() => setRefreshing(false), 1500);
+    setRefreshing(false);
   };
 
   const handleTouchStart = (e) => setTouchStart(e.touches[0].clientY);
@@ -96,43 +116,33 @@ function Feed() {
     return true;
   };
 
-  const handleLike = (id) => {
+  const handleLike = async (id) => {
     if (!requireAuth()) return;
     const isLiked = liked[id];
     setLiked((p) => ({ ...p, [id]: !p[id] }));
     showToast(isLiked ? 'Like removed' : 'Post liked! ❤️', isLiked ? 'info' : 'success');
+    try { await likePost(id); } catch { setLiked((p) => ({ ...p, [id]: isLiked })); }
   };
 
-  const handleVote = (id, type) => {
+  const handleVote = async (id, type) => {
     if (!requireAuth()) return;
     const current = votes[id];
-    if (current === type) {
-      setVotes((p) => ({ ...p, [id]: null }));
-      showToast('Vote removed', 'info');
-    } else {
-      setVotes((p) => ({ ...p, [id]: type }));
-      showToast(type === 'confirm' ? 'Price confirmed! 👍' : 'Price flagged! 👎', type === 'confirm' ? 'success' : 'warning');
-    }
+    const next = current === type ? null : type;
+    setVotes((p) => ({ ...p, [id]: next }));
+    showToast(next === 'confirm' ? 'Price confirmed! 👍' : next === 'deny' ? 'Price flagged! 👎' : 'Vote removed', next === 'confirm' ? 'success' : next === 'deny' ? 'warning' : 'info');
+    try { await votePost(id, next ?? 'remove'); } catch { setVotes((p) => ({ ...p, [id]: current })); }
   };
 
   const handleBottomSheetComment = (id, text) => {
-    setPosts((p) => p.map((post) => post.id === id ? { ...post, comments: [...post.comments, text] } : post));
+    setPosts((p) => p.map((post) => post.id === id ? { ...post, comments_count: (post.comments_count || 0) + 1 } : post));
   };
 
-  const filtered = posts
-    .filter((p) => {
-      const matchSearch = p.product.toLowerCase().includes(search.toLowerCase()) || p.location.toLowerCase().includes(search.toLowerCase());
-      const matchState = filterState === 'All States' || p.state === filterState;
-      const matchCategory = filterCategory === 'All Categories' || p.category === filterCategory;
-      return matchSearch && matchState && matchCategory;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'newest') return b.id - a.id;
-      if (sortBy === 'lowest') return a.price - b.price;
-      if (sortBy === 'highest') return b.price - a.price;
-      if (sortBy === 'popular') return b.likes - a.likes;
-      return 0;
-    });
+  // Posts are already filtered/sorted server-side; apply light client-side filter for instant UX
+  const filtered = posts.filter((p) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (p.product || '').toLowerCase().includes(q) || (p.market || '').toLowerCase().includes(q);
+  });
 
   const selectStyle = {
     padding: '10px 14px', borderRadius: '10px', fontSize: '13px', fontWeight: 600,
@@ -344,41 +354,41 @@ function Feed() {
                   style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '16px', overflow: 'hidden', transition: 'all 0.2s', cursor: 'pointer' }}
                 >
                   <div style={{ position: 'relative' }}>
-                    <img src={post.image} alt={post.product} style={{ width: '100%', height: '180px', objectFit: 'cover', display: 'block' }} />
+                    <img src={post.image_url || post.image || 'https://placehold.co/400x180?text=No+Image'} alt={post.product} style={{ width: '100%', height: '180px', objectFit: 'cover', display: 'block' }} />
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(8,8,15,0.85) 0%, transparent 55%)' }} />
                     <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(8,8,15,0.7)', backdropFilter: 'blur(8px)', padding: '4px 10px', borderRadius: '6px', fontSize: '10px', fontWeight: 700, color: catColor, letterSpacing: '1px', textTransform: 'uppercase', border: `1px solid ${catColor}40` }}>
                       {post.category}
                     </div>
                     <div style={{ position: 'absolute', bottom: '12px', right: '12px', fontSize: '22px', fontWeight: 900, color: '#fff', textShadow: `0 0 20px ${catColor}` }}>
-                      ₦{post.price.toLocaleString()}
+                      ₦{Number(post.price).toLocaleString()}
                     </div>
                   </div>
                   <div style={{ padding: '14px' }}>
                     <h3 style={{ fontSize: '15px', fontWeight: 700, color: theme.text, margin: '0 0 6px' }}>{post.product}</h3>
-                    <p style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '4px' }}>📍 {post.location}, {post.state}</p>
+                    <p style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '4px' }}>📍 {post.market || post.location}, {post.state}</p>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <span style={{ fontSize: '11px', background: theme.pill, color: theme.pillText, padding: '3px 10px', borderRadius: '6px' }}>👤 {post.user}</span>
-                      <span style={{ fontSize: '11px', color: theme.textDim }}>🕐 {getRelativeTime(post.date)}</span>
+                      <span style={{ fontSize: '11px', background: theme.pill, color: theme.pillText, padding: '3px 10px', borderRadius: '6px' }}>👤 {post.user?.name || post.user || 'Anonymous'}</span>
+                      <span style={{ fontSize: '11px', color: theme.textDim }}>🕐 {getRelativeTime(post.created_at || post.date)}</span>
                     </div>
                     <div
-                    onClick={(e) => e.stopPropagation()}
-                    onTouchStart={(e) => e.stopPropagation()}
-                    onTouchEnd={(e) => e.stopPropagation()}
-                    style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
-                  >
+                      onClick={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
+                      onTouchEnd={(e) => e.stopPropagation()}
+                      style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+                    >
                       {/* LIKE + COMMENT */}
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <HapticButton
                           onClick={() => handleLike(post.id)}
                           style={{ flex: 1, padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, border: `1px solid ${liked[post.id] ? 'rgba(255,77,109,0.4)' : theme.cardBorder}`, background: liked[post.id] ? 'rgba(255,77,109,0.1)' : 'transparent', color: liked[post.id] ? '#ff4d6d' : theme.textMuted }}
                         >
-                          {liked[post.id] ? '❤️' : '🤍'} {liked[post.id] ? post.likes + 1 : post.likes}
+                          {liked[post.id] ? '❤️' : '🤍'} {(post.likes_count ?? post.likes ?? 0) + (liked[post.id] ? 1 : 0)}
                         </HapticButton>
                         <HapticButton
                           onClick={() => { if (!requireAuth()) return; setBottomSheetPost(post); }}
                           style={{ flex: 1, padding: '10px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted }}
                         >
-                          💬 {post.comments.length}
+                          💬 {post.comments_count ?? (Array.isArray(post.comments) ? post.comments.length : 0)}
                         </HapticButton>
                       </div>
                       {/* CONFIRM / DENY accuracy */}
@@ -388,13 +398,13 @@ function Feed() {
                           onClick={() => handleVote(post.id, 'confirm')}
                           style={{ flex: 1, padding: '8px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, border: `1px solid ${votes[post.id] === 'confirm' ? 'rgba(0,230,118,0.5)' : theme.cardBorder}`, background: votes[post.id] === 'confirm' ? 'rgba(0,230,118,0.12)' : 'transparent', color: votes[post.id] === 'confirm' ? '#00e676' : theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                         >
-                          <ThumbsUp size={14} /> {post.confirms + (votes[post.id] === 'confirm' ? 1 : 0)}
+                          <ThumbsUp size={14} /> {(post.confirms_count ?? post.confirms ?? 0) + (votes[post.id] === 'confirm' ? 1 : 0)}
                         </HapticButton>
                         <HapticButton
                           onClick={() => handleVote(post.id, 'deny')}
                           style={{ flex: 1, padding: '8px', borderRadius: '10px', fontSize: '12px', fontWeight: 700, border: `1px solid ${votes[post.id] === 'deny' ? 'rgba(255,77,109,0.5)' : theme.cardBorder}`, background: votes[post.id] === 'deny' ? 'rgba(255,77,109,0.12)' : 'transparent', color: votes[post.id] === 'deny' ? '#ff4d6d' : theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                         >
-                          <ThumbsDown size={14} /> {post.denies + (votes[post.id] === 'deny' ? 1 : 0)}
+                          <ThumbsDown size={14} /> {(post.denies_count ?? post.denies ?? 0) + (votes[post.id] === 'deny' ? 1 : 0)}
                         </HapticButton>
                       </div>
                     </div>

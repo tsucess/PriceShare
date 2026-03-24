@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { deleteMe } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import HapticButton from '../components/HapticButton';
 import { SkeletonRow, SkeletonBlock } from '../components/SkeletonCard';
@@ -20,9 +22,12 @@ function Settings() {
   const navigate = useNavigate();
   const theme = useTheme();
   const { showToast } = useToast();
+  const { logout } = useAuth();
   const isMobile = useIsMobile();
 
   const [loading, setLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [notifications, setNotifications] = useState({
     priceAlerts: true, newComments: true, weeklyReport: false, govUpdates: true,
   });
@@ -39,6 +44,28 @@ function Settings() {
     const t = setTimeout(() => setLoading(false), 1200);
     return () => clearTimeout(t);
   }, []);
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await logout(); // invalidates token on server, clears localStorage
+    showToast('Signed out successfully 👋', 'info');
+    navigate('/');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteInput !== 'DELETE') return;
+    setDeletingAccount(true);
+    try {
+      await deleteMe();
+      await logout();
+      showToast('Account deleted 👋', 'error');
+      navigate('/');
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Could not delete account. Try again.';
+      showToast(msg, 'error');
+      setDeletingAccount(false);
+    }
+  };
 
   const Toggle = ({ value, onChange }) => (
     <div
@@ -292,9 +319,10 @@ function Settings() {
 
             {/* SIGN OUT + DELETE — always full width at bottom */}
             <HapticButton
-              onClick={() => { showToast('Signed out successfully 👋', 'info'); setTimeout(() => navigate('/'), 1000); }}
+              onClick={handleSignOut}
+              disabled={signingOut}
               style={{ width: '100%', padding: '16px', borderRadius: '14px', fontSize: '15px', fontWeight: 800, border: '1px solid rgba(255,77,109,0.3)', background: 'rgba(255,77,109,0.08)', color: '#ff4d6d', marginBottom: '12px' }}
-            >🚪 Sign Out</HapticButton>
+            >{signingOut ? '⏳ Signing out...' : '🚪 Sign Out'}</HapticButton>
 
             {!showDeleteConfirm ? (
               <HapticButton
@@ -318,10 +346,10 @@ function Settings() {
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <HapticButton onClick={() => { setShowDeleteConfirm(false); setDeleteInput(''); }} style={{ flex: 1, padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted }}>Cancel</HapticButton>
                   <HapticButton
-                    onClick={() => { if (deleteInput === 'DELETE') { showToast('Account deleted 👋', 'error'); setTimeout(() => navigate('/'), 1200); } }}
-                    disabled={deleteInput !== 'DELETE'}
+                    onClick={handleDeleteAccount}
+                    disabled={deleteInput !== 'DELETE' || deletingAccount}
                     style={{ flex: 1, padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, border: 'none', background: deleteInput === 'DELETE' ? '#ff4d6d' : 'rgba(255,77,109,0.2)', color: deleteInput === 'DELETE' ? '#fff' : 'rgba(255,77,109,0.4)' }}
-                  >Delete Forever</HapticButton>
+                  >{deletingAccount ? '⏳ Deleting...' : 'Delete Forever'}</HapticButton>
                 </div>
               </div>
             )}

@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { authLogin } from '../services/api';
 import HapticButton from '../components/HapticButton';
 import { Eye, EyeOff, XCircle } from 'lucide-react';
 
@@ -13,11 +16,15 @@ const isValidNigerianPhone = (v) => {
 function LoginPage() {
   const navigate = useNavigate();
   const theme = useTheme();
+  const { showToast } = useToast();
+  const { login } = useAuth();
 
   const [form, setForm] = useState({ contact: '', password: '' });
   const [showPass, setShowPass] = useState(false);
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [apiError, setApiError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
   const handleBlur = (name) => setTouched((p) => ({ ...p, [name]: true }));
@@ -32,11 +39,25 @@ function LoginPage() {
 
   const isFormValid = contactValid && form.password.length >= 8;
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setSubmitted(true);
     setTouched({ contact: true, password: true });
+    setApiError('');
     if (!isFormValid) return;
-    navigate('/dashboard');
+    setLoading(true);
+    try {
+      const res = await authLogin({ contact: form.contact, password: form.password });
+      const { token, user } = res.data;
+      login(token, user);
+      showToast('Welcome back! 👋', 'success');
+      navigate('/dashboard');
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Login failed. Check your credentials.';
+      setApiError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Allow Enter key to submit
@@ -141,20 +162,28 @@ function LoginPage() {
             >Forgot password?</span>
           </div>
 
+          {/* API ERROR */}
+          {apiError && (
+            <div style={{ background: 'rgba(255,77,109,0.1)', border: '1px solid rgba(255,77,109,0.35)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#ff4d6d', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <XCircle size={14} /> {apiError}
+            </div>
+          )}
+
           {/* LOGIN BUTTON */}
           <HapticButton
             onClick={handleLogin}
+            disabled={loading}
             style={{
               width: '100%', padding: '15px', borderRadius: '12px',
-              background: isFormValid
+              background: isFormValid && !loading
                 ? `linear-gradient(135deg, ${theme.accent}, #00c853)`
                 : theme.cardBorder,
-              color: isFormValid ? '#0a0a0f' : theme.textMuted,
+              color: isFormValid && !loading ? '#0a0a0f' : theme.textMuted,
               fontWeight: 800, fontSize: '15px', border: 'none',
-              boxShadow: isFormValid ? `0 4px 20px ${theme.accent}40` : 'none',
+              boxShadow: isFormValid && !loading ? `0 4px 20px ${theme.accent}40` : 'none',
               transition: 'all 0.3s',
             }}
-          >Log In</HapticButton>
+          >{loading ? '⏳ Logging in...' : 'Log In'}</HapticButton>
 
           <p style={{ textAlign: 'center', fontSize: '14px', color: theme.textMuted, margin: 0 }}>
             Don't have an account?{' '}

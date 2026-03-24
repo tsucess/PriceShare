@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
@@ -59,7 +60,7 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(!hasSeenOnboarding);
 
   return (
-    <>
+    <AuthProvider>
       {showSplash && (
         <SplashScreen onDone={() => setShowSplash(false)} />
       )}
@@ -71,7 +72,7 @@ function App() {
           />
         </Router>
       )}
-    </>
+    </AuthProvider>
   );
 }
 

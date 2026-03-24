@@ -1,7 +1,9 @@
-import React, { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
+import { getPost, likePost, getComments, addComment } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import HapticButton from "../components/HapticButton";
 
@@ -16,32 +18,82 @@ const categoryColors = {
 function PostDetail() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { id: paramId } = useParams();
   const theme = useTheme();
   const { showToast } = useToast();
+  const { user } = useAuth();
 
-  const post = location.state?.post;
+  // Post may arrive via router state (fast path) or needs to be fetched
+  const [post, setPost] = useState(location.state?.post ?? null);
+  const [fetchError, setFetchError] = useState(false);
   const [zoomed, setZoomed] = useState(false);
   const [liked, setLiked] = useState(false);
-  const [comments, setComments] = useState(post?.comments || []);
+  const [likesCount, setLikesCount] = useState(0);
+  const [comments, setComments] = useState([]);
   const [commentInput, setCommentInput] = useState("");
+  const [addingComment, setAddingComment] = useState(false);
   const [reported, setReported] = useState(false);
 
-  const handleLike = () => {
-    setLiked(!liked);
-    showToast(
-      liked ? "Like removed" : "Post liked! ❤️",
-      liked ? "info" : "success",
-    );
+  // Fetch post by ID when not available in router state
+  useEffect(() => {
+    if (post) {
+      setLikesCount(post.likes_count ?? post.likes ?? 0);
+      return;
+    }
+    const id = paramId;
+    if (!id) { setFetchError(true); return; }
+    getPost(id)
+      .then((res) => {
+        const data = res.data.data ?? res.data;
+        setPost(data);
+        setLikesCount(data.likes_count ?? data.likes ?? 0);
+      })
+      .catch(() => setFetchError(true));
+  }, [post, paramId]);
+
+  // Load comments from API
+  const fetchComments = useCallback(async (postId) => {
+    try {
+      const res = await getComments(postId);
+      const data = res.data.data ?? res.data;
+      setComments(Array.isArray(data) ? data : data.data ?? []);
+    } catch { /* silently fail — show empty state */ }
+  }, []);
+
+  useEffect(() => {
+    if (post?.id) fetchComments(post.id);
+  }, [post?.id, fetchComments]);
+
+  const handleLike = async () => {
+    if (!user) { showToast('Sign in to like posts', 'warning'); return; }
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikesCount((c) => wasLiked ? c - 1 : c + 1);
+    try { await likePost(post.id); }
+    catch {
+      setLiked(wasLiked);
+      setLikesCount((c) => wasLiked ? c + 1 : c - 1);
+    }
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
     if (!commentInput.trim()) return;
-    setComments([
-      ...comments,
-      { text: commentInput, user: "You", date: "Just now" },
-    ]);
-    setCommentInput("");
-    showToast("Comment added! 💬", "success");
+    if (!user) { showToast('Sign in to comment', 'warning'); return; }
+    setAddingComment(true);
+    try {
+      await addComment(post.id, commentInput.trim());
+      // Optimistically add comment then refresh from API
+      setComments((prev) => [
+        ...prev,
+        { body: commentInput.trim(), user: { name: user.name }, created_at: new Date().toISOString() },
+      ]);
+      setCommentInput("");
+      showToast("Comment added! 💬", "success");
+    } catch {
+      showToast('Could not post comment. Try again.', 'error');
+    } finally {
+      setAddingComment(false);
+    }
   };
 
   const handleReport = () => {
@@ -50,54 +102,31 @@ function PostDetail() {
   };
 
   const handleShare = () => {
+    const url = `${window.location.origin}${window.location.pathname}#/post/${post?.id}`;
+    navigator.clipboard?.writeText(url).catch(() => {});
     showToast("Share link copied! 🔗", "success");
   };
 
-  // Not found state
-  if (!post) {
+  // Loading / error state
+  if (!post && !fetchError) {
     return (
-      <div
-        style={{
-          display: "flex",
-          minHeight: "100vh",
-          background: theme.bg,
-          fontFamily: "'DM Sans', 'Segoe UI', sans-serif",
-        }}
-      >
+      <div style={{ display: "flex", minHeight: "100vh", background: theme.bg, fontFamily: "'DM Sans', 'Segoe UI', sans-serif" }}>
         <Sidebar />
-        <main
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "40px 24px",
-          }}
-        >
+        <main style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <p style={{ color: theme.textMuted, fontSize: "15px" }}>⏳ Loading post...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (fetchError || !post) {
+    return (
+      <div style={{ display: "flex", minHeight: "100vh", background: theme.bg, fontFamily: "'DM Sans', 'Segoe UI', sans-serif" }}>
+        <Sidebar />
+        <main style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 24px" }}>
           <div style={{ fontSize: "64px", marginBottom: "16px" }}>😕</div>
-          <p
-            style={{
-              color: theme.textMuted,
-              fontWeight: 600,
-              marginBottom: "20px",
-              fontSize: "16px",
-            }}
-          >
-            Post not found
-          </p>
-          <HapticButton
-            onClick={() => navigate("/feed")}
-            style={{
-              padding: "12px 24px",
-              borderRadius: "10px",
-              fontWeight: 700,
-              background: `linear-gradient(135deg, ${theme.accent}, #00c853)`,
-              color: "#0a0a0f",
-              border: "none",
-              fontSize: "14px",
-            }}
-          >
+          <p style={{ color: theme.textMuted, fontWeight: 600, marginBottom: "20px", fontSize: "16px" }}>Post not found</p>
+          <HapticButton onClick={() => navigate("/feed")} style={{ padding: "12px 24px", borderRadius: "10px", fontWeight: 700, background: `linear-gradient(135deg, ${theme.accent}, #00c853)`, color: "#0a0a0f", border: "none", fontSize: "14px" }}>
             ← Back to Feed
           </HapticButton>
         </main>
@@ -130,7 +159,7 @@ function PostDetail() {
           }}
         >
           <img
-            src={post.image}
+            src={post.image_url || post.image || 'https://placehold.co/800x280?text=No+Image'}
             alt={post.product}
             onClick={() => setZoomed(true)}
             style={{
@@ -226,7 +255,7 @@ function PostDetail() {
               textShadow: `0 0 30px ${catColor}`,
             }}
           >
-            ₦{post.price.toLocaleString()}
+            ₦{Number(post.price).toLocaleString()}
           </div>
         </div>
 
@@ -267,7 +296,7 @@ function PostDetail() {
                   color: "#0a0a0f",
                 }}
               >
-                {post.user?.charAt(0)}
+                {(post.user?.name || post.user || 'A').charAt(0).toUpperCase()}
               </div>
               <div>
                 <p
@@ -278,7 +307,7 @@ function PostDetail() {
                     margin: 0,
                   }}
                 >
-                  {post.user}
+                  {post.user?.name || post.user || 'Anonymous'}
                 </p>
                 <p
                   style={{
@@ -287,7 +316,7 @@ function PostDetail() {
                     margin: 0,
                   }}
                 >
-                  {post.date}
+                  {post.created_at ? new Date(post.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : post.date}
                 </p>
               </div>
             </div>
@@ -325,10 +354,10 @@ function PostDetail() {
             }}
           >
             {[
-              { icon: "📍", label: "Market", value: post.location },
+              { icon: "📍", label: "Market", value: post.market || post.location },
               { icon: "🗺️", label: "State", value: post.state },
               { icon: "🏷️", label: "Category", value: post.category },
-              { icon: "🗓️", label: "Reported", value: post.date },
+              { icon: "🗓️", label: "Reported", value: post.created_at ? new Date(post.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : post.date },
             ].map((detail) => (
               <div key={detail.label}>
                 <p
@@ -387,17 +416,17 @@ function PostDetail() {
             {[
               {
                 label: "This Price",
-                value: `₦${post.price.toLocaleString()}`,
+                value: `₦${Number(post.price).toLocaleString()}`,
                 color: theme.text,
               },
               {
                 label: "Avg in State",
-                value: `₦${Math.round(post.price * 1.12).toLocaleString()}`,
+                value: `₦${Math.round(Number(post.price) * 1.12).toLocaleString()}`,
                 color: "#ffd600",
               },
               {
                 label: "Lowest Found",
-                value: `₦${Math.round(post.price * 0.85).toLocaleString()}`,
+                value: `₦${Math.round(Number(post.price) * 0.85).toLocaleString()}`,
                 color: "#00e676",
               },
             ].map((p) => (
@@ -457,7 +486,7 @@ function PostDetail() {
               color: liked ? "#ff4d6d" : theme.textMuted,
             }}
           >
-            {liked ? "❤️" : "🤍"} {liked ? post.likes + 1 : post.likes} Likes
+            {liked ? "❤️" : "🤍"} {likesCount} Likes
           </HapticButton>
 
           <HapticButton
@@ -500,7 +529,7 @@ function PostDetail() {
                 margin: 0,
               }}
             >
-              💬 Comments ({comments.length})
+              💬 Comments ({post.comments_count ?? comments.length})
             </h3>
           </div>
 
@@ -531,7 +560,7 @@ function PostDetail() {
             ) : (
               comments.map((c, i) => (
                 <div
-                  key={i}
+                  key={c.id ?? i}
                   style={{
                     background: theme.pill,
                     borderRadius: "12px",
@@ -557,10 +586,10 @@ function PostDetail() {
                         color: catColor,
                       }}
                     >
-                      👤 {c.user || "Anonymous"}
+                      👤 {c.user?.name || c.user || "Anonymous"}
                     </span>
                     <span style={{ fontSize: "11px", color: theme.textDim }}>
-                      {c.date || post.date}
+                      {c.created_at ? new Date(c.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' }) : c.date || ''}
                     </span>
                   </div>
                   <p
@@ -571,7 +600,7 @@ function PostDetail() {
                       lineHeight: 1.5,
                     }}
                   >
-                    {c.text || c}
+                    {c.body || c.text || c}
                   </p>
                 </div>
               ))
@@ -607,17 +636,18 @@ function PostDetail() {
             />
             <HapticButton
               onClick={handleAddComment}
+              disabled={addingComment}
               style={{
                 padding: "11px 18px",
-                background: `linear-gradient(135deg, ${theme.accent}, #00c853)`,
-                color: "#0a0a0f",
+                background: addingComment ? theme.cardBorder : `linear-gradient(135deg, ${theme.accent}, #00c853)`,
+                color: addingComment ? theme.textMuted : "#0a0a0f",
                 borderRadius: "10px",
                 border: "none",
                 fontWeight: 800,
                 fontSize: "15px",
               }}
             >
-              →
+              {addingComment ? '⏳' : '→'}
             </HapticButton>
           </div>
         </div>
@@ -680,11 +710,11 @@ function PostDetail() {
               whiteSpace: "nowrap",
             }}
           >
-            {post.product} — ₦{post.price.toLocaleString()}
+            {post.product} — ₦{Number(post.price).toLocaleString()}
           </div>
 
           <img
-            src={post.image}
+            src={post.image_url || post.image || 'https://placehold.co/800x600?text=No+Image'}
             alt={post.product}
             onClick={(e) => e.stopPropagation()}
             style={{

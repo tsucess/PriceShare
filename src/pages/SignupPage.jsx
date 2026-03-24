@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
+import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { authRegister } from '../services/api';
 import HapticButton from '../components/HapticButton';
 import { Eye, EyeOff, CheckCircle2, XCircle } from 'lucide-react';
 
@@ -34,6 +37,8 @@ const strengthColor = ['', '#ff4d6d', '#ff9a3c', '#ffd600', '#00b0ff', '#00e676'
 function SignupPage() {
   const navigate = useNavigate();
   const theme = useTheme();
+  const { showToast } = useToast();
+  const { login } = useAuth();
 
   const [form, setForm] = useState({ fullname: '', contact: '', state: '', password: '', confirm: '' });
   const [showPass, setShowPass] = useState(false);
@@ -41,6 +46,8 @@ function SignupPage() {
   const [agreed, setAgreed] = useState(false);
   const [touched, setTouched] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [apiError, setApiError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
   const handleBlur = (name) => setTouched((p) => ({ ...p, [name]: true }));
@@ -64,11 +71,34 @@ function SignupPage() {
     form.confirm === form.password &&
     agreed;
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     setSubmitted(true);
     setTouched({ fullname: true, contact: true, state: true, password: true, confirm: true });
+    setApiError('');
     if (!isFormValid) return;
-    navigate('/dashboard');
+    setLoading(true);
+    try {
+      const res = await authRegister({
+        name: form.fullname,
+        contact: form.contact,
+        state: form.state,
+        password: form.password,
+        password_confirmation: form.confirm,
+      });
+      const { token, user } = res.data;
+      login(token, user);
+      showToast('Account created! Welcome 🎉', 'success');
+      navigate('/dashboard');
+    } catch (err) {
+      const data = err.response?.data;
+      const msg = data?.errors
+        ? Object.values(data.errors).flat().join(' ')
+        : data?.message || 'Registration failed. Please try again.';
+      setApiError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const inputStyle = (name, extra = {}) => ({
@@ -259,20 +289,28 @@ function SignupPage() {
           </div>
           {submitted && !agreed && <ErrorMsg msg="You must agree to the terms to continue" />}
 
+          {/* API ERROR */}
+          {apiError && (
+            <div style={{ background: 'rgba(255,77,109,0.1)', border: '1px solid rgba(255,77,109,0.35)', borderRadius: '10px', padding: '10px 14px', fontSize: '13px', color: '#ff4d6d', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <XCircle size={14} /> {apiError}
+            </div>
+          )}
+
           {/* SUBMIT */}
           <HapticButton
             onClick={handleSignup}
+            disabled={loading}
             style={{
               width: '100%', padding: '15px', borderRadius: '12px',
-              background: isFormValid
+              background: isFormValid && !loading
                 ? `linear-gradient(135deg, ${theme.accent}, #00c853)`
                 : theme.cardBorder,
-              color: isFormValid ? '#0a0a0f' : theme.textMuted,
+              color: isFormValid && !loading ? '#0a0a0f' : theme.textMuted,
               fontWeight: 800, fontSize: '15px', border: 'none',
-              boxShadow: isFormValid ? `0 4px 20px ${theme.accent}40` : 'none',
+              boxShadow: isFormValid && !loading ? `0 4px 20px ${theme.accent}40` : 'none',
               transition: 'all 0.3s',
             }}
-          >Create Account</HapticButton>
+          >{loading ? '⏳ Creating account...' : 'Create Account'}</HapticButton>
 
           <p style={{ textAlign: 'center', fontSize: '14px', color: theme.textMuted, margin: 0 }}>
             Already have an account?{' '}

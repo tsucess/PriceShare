@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { uploadImage, createPost } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import HapticButton from '../components/HapticButton';
-import { addPost } from '../utils/postsStore';
 
 const MAX_DESC = 200;
 
@@ -26,10 +27,13 @@ function NewPost() {
   const navigate = useNavigate();
   const theme = useTheme();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [preview, setPreview] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
   const [locating, setLocating] = useState(false);
   const [stateWarning, setStateWarning] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [form, setForm] = useState({
     product: '', price: '', category: '', market: '',
@@ -44,7 +48,10 @@ function NewPost() {
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (file) setPreview(URL.createObjectURL(file));
+    if (file) {
+      setImageFile(file);
+      setPreview(URL.createObjectURL(file));
+    }
   };
 
   const handleDetectLocation = () => {
@@ -92,7 +99,7 @@ function NewPost() {
     );
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const errors = {};
     if (!preview) errors.image = 'A product photo is required 📸';
     if (!form.product.trim()) errors.product = 'Product name is required';
@@ -108,19 +115,44 @@ function NewPost() {
       return;
     }
     setFieldErrors({});
-    // Save to shared store — replace with API call when backend is ready
-    addPost({
-      product: form.product,
-      price: Number(form.price),
-      location: form.market,
-      exactLocation: form.location,
-      coords: form.coords,
-      state: form.state,
-      category: form.category.replace(/^[\u{1F000}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]\s*/u, '').trim(),
-      image: preview || null,
-      description: form.description,
-    });
-    setSubmitted(true);
+    setSubmitting(true);
+
+    try {
+      // Step 1: upload image (only if a file was picked)
+      let imageUrl = null;
+      if (imageFile) {
+        const uploadRes = await uploadImage(imageFile);
+        imageUrl = uploadRes.data?.url ?? uploadRes.data?.image_url ?? null;
+      }
+
+      // Step 2: create the post
+      const cleanCategory = form.category
+        .replace(/^[\u{1F000}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]\s*/u, '')
+        .trim();
+
+      await createPost({
+        product: form.product,
+        price: Number(form.price),
+        market: form.market,
+        location: form.location || form.market,
+        state: form.state,
+        category: cleanCategory,
+        description: form.description,
+        image_url: imageUrl,
+        coords: form.coords,
+      });
+
+      setSubmitted(true);
+      showToast('Price report submitted! 🎉', 'success');
+    } catch (err) {
+      const data = err.response?.data;
+      const msg = data?.errors
+        ? Object.values(data.errors).flat().join(' ')
+        : data?.message || 'Submission failed. Please try again.';
+      showToast(msg, 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const inputStyle = {
@@ -370,8 +402,9 @@ function NewPost() {
               >Cancel</HapticButton>
               <HapticButton
                 onClick={handleSubmit}
-                style={{ flex: 1, padding: '13px', borderRadius: '10px', fontSize: '14px', fontWeight: 800, background: `linear-gradient(135deg, ${theme.accent}, #00c853)`, color: '#0a0a0f', border: 'none', boxShadow: `0 4px 20px ${theme.accent}40`, letterSpacing: '0.5px' }}
-              >🚀 Submit Price Report</HapticButton>
+                disabled={submitting}
+                style={{ flex: 1, padding: '13px', borderRadius: '10px', fontSize: '14px', fontWeight: 800, background: submitting ? theme.cardBorder : `linear-gradient(135deg, ${theme.accent}, #00c853)`, color: submitting ? theme.textMuted : '#0a0a0f', border: 'none', boxShadow: submitting ? 'none' : `0 4px 20px ${theme.accent}40`, letterSpacing: '0.5px', transition: 'all 0.3s' }}
+              >{submitting ? '⏳ Submitting...' : '🚀 Submit Price Report'}</HapticButton>
             </div>
 
           </div>
