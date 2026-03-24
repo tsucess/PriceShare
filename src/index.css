@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+}
+
+/* ── DESKTOP: push content right of the fixed sidebar ── */
+@media (min-width: 769px) {
+  main {
+    margin-left: 220px !important;
+    padding: 32px 40px !important;
+    max-width: 900px !important;
+  }
+}
+
+/* ── MOBILE: space for fixed top bar and bottom nav ── */
+@media (max-width: 768px) {
+  main {
+    padding-top: 80px !important;
+    padding-bottom: 100px !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+}
