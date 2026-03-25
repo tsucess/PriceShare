@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-import { deleteMe } from '../services/api';
+import { deleteMe, authChangePassword } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import HapticButton from '../components/HapticButton';
 import { SkeletonRow, SkeletonBlock } from '../components/SkeletonCard';
@@ -39,6 +39,9 @@ function Settings() {
   const [region, setRegion] = useState('Lagos');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pwForm, setPwForm] = useState({ current_password: '', password: '', password_confirmation: '' });
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 1200);
@@ -64,6 +67,29 @@ function Settings() {
       const msg = err.response?.data?.message || 'Could not delete account. Try again.';
       showToast(msg, 'error');
       setDeletingAccount(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!pwForm.current_password || !pwForm.password || !pwForm.password_confirmation) {
+      showToast('Please fill all password fields.', 'error'); return;
+    }
+    if (pwForm.password !== pwForm.password_confirmation) {
+      showToast('New passwords do not match.', 'error'); return;
+    }
+    setChangingPassword(true);
+    try {
+      await authChangePassword(pwForm);
+      showToast('Password changed! Please sign in again.', 'success');
+      setShowPasswordModal(false);
+      setPwForm({ current_password: '', password: '', password_confirmation: '' });
+      await logout();
+      navigate('/');
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Could not change password.';
+      showToast(msg, 'error');
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -280,7 +306,7 @@ function Settings() {
                     right={<Toggle value={privacy.allowDM} onChange={(v) => { setPrivacy({ ...privacy, allowDM: v }); showToast(v ? 'Direct messages enabled ✉️' : 'Direct messages disabled', v ? 'success' : 'info'); }} />}
                   />
                   <Row icon="🔒" label="Change Password" desc="Update your account password"
-                    right={<HapticButton onClick={() => showToast('Password change coming soon! 🚧', 'info')} style={ghostBtn}>Update</HapticButton>}
+                    right={<HapticButton onClick={() => setShowPasswordModal(true)} style={ghostBtn}>Update</HapticButton>}
                   />
                 </Section>
 
@@ -356,6 +382,38 @@ function Settings() {
           </>
         )}
       </main>
+
+      {/* ── Change Password Modal ─────────────────────────────────────── */}
+      {showPasswordModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '400px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: theme.text }}>🔒 Change Password</h3>
+            {[
+              { key: 'current_password', label: 'Current Password' },
+              { key: 'password', label: 'New Password' },
+              { key: 'password_confirmation', label: 'Confirm New Password' },
+            ].map(({ key, label }) => (
+              <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', color: theme.textMuted, fontWeight: 600 }}>{label}</label>
+                <input
+                  type="password"
+                  value={pwForm[key]}
+                  onChange={(e) => setPwForm((p) => ({ ...p, [key]: e.target.value }))}
+                  style={{ padding: '11px 14px', borderRadius: '10px', border: `1px solid ${theme.cardBorder}`, background: theme.pill, color: theme.text, fontSize: '14px', outline: 'none' }}
+                />
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <HapticButton onClick={() => { setShowPasswordModal(false); setPwForm({ current_password: '', password: '', password_confirmation: '' }); }}
+                style={{ flex: 1, padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted }}>Cancel</HapticButton>
+              <HapticButton onClick={handleChangePassword} disabled={changingPassword}
+                style={{ flex: 1, padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 800, border: 'none', background: `linear-gradient(135deg, ${theme.accent}, #00c853)`, color: '#0a0a0f' }}>
+                {changingPassword ? '⏳ Saving...' : 'Save'}
+              </HapticButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

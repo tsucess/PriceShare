@@ -12,7 +12,8 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!token) { setLoading(false); return; }
     getMe()
-      .then((res) => setUser(res.data.data ?? res.data))
+      // /users/me returns { user: {...} } — extract the nested user object
+      .then((res) => setUser(res.data.user ?? res.data.data ?? res.data))
       .catch(() => {
         // Token is invalid / expired — clear it
         localStorage.removeItem('ps-token');

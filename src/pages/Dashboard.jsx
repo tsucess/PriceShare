@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { getDashboard, getUserPosts, likePost, votePost, deletePost } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import BottomSheet from '../components/BottomSheet';
 import HapticButton from '../components/HapticButton';
 import { ThumbsUp, ThumbsDown, Trash2 } from 'lucide-react';
 import SkeletonCard, { SkeletonStat } from '../components/SkeletonCard';
-import { getPosts, deletePost as storeDeletePost } from '../utils/postsStore';
 
 
 function useCountUp(target, duration = 1500) {
@@ -103,47 +104,70 @@ function Dashboard() {
   const navigate = useNavigate();
   const theme = useTheme();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [profileComplete, setProfileComplete] = useState(localStorage.getItem('pw-profile-complete') === 'true');
   const [activeTab, setActiveTab] = useState('posts');
   const [liked, setLiked] = useState({});
   const [votes, setVotes] = useState({});
-  const [posts, setPosts] = useState(() => getPosts());
+  const [posts, setPosts] = useState([]);
+  const [stats, setStats] = useState({ total_posts: 0, total_users: 0, avg_price: 0 });
   const [bottomSheetPost, setBottomSheetPost] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 1500);
-    return () => clearTimeout(t);
-  }, []);
+  const loadData = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const [postsRes, dashRes] = await Promise.all([
+        getUserPosts(user.id),
+        getDashboard(),
+      ]);
+      const postsData = postsRes.data?.data ?? postsRes.data ?? [];
+      setPosts(postsData);
+      setStats(dashRes.data ?? {});
+    } catch {
+      showToast('Could not load dashboard data.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [user, showToast]);
 
-  const handleLike = (id) => {
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const handleLike = async (id) => {
     const isLiked = liked[id];
     setLiked((prev) => ({ ...prev, [id]: !prev[id] }));
     showToast(isLiked ? 'Like removed' : 'Post liked! ❤️', isLiked ? 'info' : 'success');
+    try { await likePost(id); } catch { setLiked((prev) => ({ ...prev, [id]: isLiked })); }
   };
 
-  const handleVote = (id, type) => {
+  const handleVote = async (id, type) => {
     const current = votes[id];
-    if (current === type) {
-      setVotes((p) => ({ ...p, [id]: null }));
-      showToast('Vote removed', 'info');
-    } else {
-      setVotes((p) => ({ ...p, [id]: type }));
-      showToast(type === 'confirm' ? 'Price confirmed! 👍' : 'Price flagged! 👎', type === 'confirm' ? 'success' : 'warning');
+    const next = current === type ? null : type;
+    setVotes((p) => ({ ...p, [id]: next }));
+    showToast(next === 'confirm' ? 'Price confirmed! 👍' : next === 'deny' ? 'Price flagged! 👎' : 'Vote removed', next === 'confirm' ? 'success' : next === 'deny' ? 'warning' : 'info');
+    try { await votePost(id, next ?? 'remove'); } catch { setVotes((p) => ({ ...p, [id]: current })); }
+  };
+
+  const handleBottomSheetComment = (id) => {
+    setPosts((prev) => prev.map((p) => p.id === id ? { ...p, comments_count: (p.comments_count || 0) + 1 } : p));
+  };
+
+  const handleDelete = async (id) => {
+    setDeletingId(id);
+    try {
+      await deletePost(id);
+      setPosts((prev) => prev.filter((p) => p.id !== id));
+      setConfirmDelete(null);
+      showToast('Post deleted 🗑️', 'info');
+    } catch {
+      showToast('Could not delete post.', 'error');
+    } finally {
+      setDeletingId(null);
     }
-  };
-
-  const handleBottomSheetComment = (id, text) => {
-    setPosts((prev) => prev.map((post) => post.id === id ? { ...post, comments: [...post.comments, text] } : post));
-  };
-
-  const handleDelete = (id) => {
-    const updated = storeDeletePost(id);
-    setPosts(updated);
-    setConfirmDelete(null);
-    showToast('Post deleted 🗑️', 'info');
   };
 
   const filteredPosts = posts.filter((post) => {
@@ -163,10 +187,10 @@ function Dashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <h1 style={{ fontSize: 'clamp(18px, 5vw, 28px)', fontWeight: 800, color: theme.text, lineHeight: 1.2, margin: 0 }}>
-                Welcome back, <span style={{ color: theme.accent }}>User</span> 👋
+                Welcome back, <span style={{ color: theme.accent }}>{user?.name?.split(' ')[0] || 'User'}</span> 👋
               </h1>
               <p style={{ color: theme.textMuted, fontSize: '13px', marginTop: '4px' }}>
-                You've submitted <span style={{ color: theme.accent, fontWeight: 600 }}>{posts.length} price reports</span>
+                You've submitted <span style={{ color: theme.accent, fontWeight: 600 }}>{posts.length} price report{posts.length !== 1 ? 's' : ''}</span>
               </p>
             </div>
             <HapticButton
@@ -216,10 +240,10 @@ function Dashboard() {
             <><SkeletonStat /><SkeletonStat /><SkeletonStat /><SkeletonStat /></>
           ) : (
             <>
-              <StatCard icon="📸" target={3}  label="Posts Submitted" color={theme.accent} />
-              <StatCard icon="❤️" target={73} label="Total Likes"     color="#ff4d6d" />
-              <StatCard icon="💬" target={16} label="Comments"        color="#00b0ff" />
-              <StatCard icon="📍" target={3}  label="Locations"       color="#ffd600" />
+              <StatCard icon="📸" target={posts.length}             label="Posts Submitted" color={theme.accent} />
+              <StatCard icon="👥" target={stats.total_users ?? 0}   label="Total Users"     color="#ff4d6d" />
+              <StatCard icon="📊" target={stats.total_posts ?? 0}   label="Total Reports"   color="#00b0ff" />
+              <StatCard icon="₦"  target={Math.round(stats.avg_price ?? 0)} label="Avg Price"  color="#ffd600" />
             </>
           )}
         </div>
@@ -256,10 +280,10 @@ function Dashboard() {
                 style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '16px', overflow: 'hidden', transition: 'all 0.2s', cursor: 'pointer' }}
               >
                 <div style={{ position: 'relative' }}>
-                  <img src={post.image} alt={post.product} style={{ width: '100%', height: '160px', objectFit: 'cover', display: 'block' }} />
+                  <img src={post.image_url || post.image || 'https://placehold.co/400x160?text=No+Image'} alt={post.product} style={{ width: '100%', height: '160px', objectFit: 'cover', display: 'block' }} />
                   <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(8,8,15,0.7) 0%, transparent 60%)' }} />
                   <div style={{ position: 'absolute', bottom: '12px', right: '12px', fontSize: '18px', fontWeight: 900, color: '#fff' }}>
-                    ₦{post.price.toLocaleString()}
+                    ₦{Number(post.price).toLocaleString()}
                   </div>
                 </div>
                 <div style={{ padding: '14px' }}>
@@ -275,8 +299,9 @@ function Dashboard() {
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <HapticButton
                           onClick={() => handleDelete(post.id)}
+                          disabled={deletingId === post.id}
                           style={{ flex: 1, padding: '9px', borderRadius: '9px', fontSize: '13px', fontWeight: 700, background: '#ff4d6d', color: '#fff', border: 'none' }}
-                        >Yes, Delete</HapticButton>
+                        >{deletingId === post.id ? '⏳...' : 'Yes, Delete'}</HapticButton>
                         <HapticButton
                           onClick={() => setConfirmDelete(null)}
                           style={{ flex: 1, padding: '9px', borderRadius: '9px', fontSize: '13px', fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted }}
@@ -292,8 +317,8 @@ function Dashboard() {
                           style={{ padding: '5px', borderRadius: '7px', border: '1px solid rgba(255,77,109,0.3)', background: 'transparent', color: '#ff4d6d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginLeft: '8px' }}
                         ><Trash2 size={13} /></HapticButton>
                       </div>
-                      <p style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '3px' }}>📍 {post.location}, {post.state}</p>
-                      <p style={{ fontSize: '11px', color: theme.textDim, marginBottom: '12px' }}>🗓️ {post.date}</p>
+                      <p style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '3px' }}>📍 {post.market || post.location}, {post.state}</p>
+                      <p style={{ fontSize: '11px', color: theme.textDim, marginBottom: '12px' }}>🗓️ {post.created_at ? new Date(post.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : post.date}</p>
                     </>
                   )}
                   <div
@@ -308,13 +333,13 @@ function Dashboard() {
                         onClick={() => handleLike(post.id)}
                         style={{ flex: 1, padding: '9px', borderRadius: '9px', fontSize: '13px', fontWeight: 700, border: `1px solid ${liked[post.id] ? 'rgba(255,77,109,0.4)' : theme.cardBorder}`, background: liked[post.id] ? 'rgba(255,77,109,0.1)' : 'transparent', color: liked[post.id] ? '#ff4d6d' : theme.textMuted }}
                       >
-                        {liked[post.id] ? '❤️' : '🤍'} {liked[post.id] ? post.likes + 1 : post.likes}
+                        {liked[post.id] ? '❤️' : '🤍'} {(post.likes_count ?? 0) + (liked[post.id] ? 1 : 0)}
                       </HapticButton>
                       <HapticButton
                         onClick={() => setBottomSheetPost(post)}
                         style={{ flex: 1, padding: '9px', borderRadius: '9px', fontSize: '13px', fontWeight: 700, border: `1px solid ${theme.cardBorder}`, background: 'transparent', color: theme.textMuted }}
                       >
-                        💬 {post.comments.length}
+                        💬 {post.comments_count ?? 0}
                       </HapticButton>
                     </div>
                     {/* CONFIRM / DENY */}
@@ -324,13 +349,13 @@ function Dashboard() {
                         onClick={() => handleVote(post.id, 'confirm')}
                         style={{ flex: 1, padding: '8px', borderRadius: '9px', fontSize: '12px', fontWeight: 700, border: `1px solid ${votes[post.id] === 'confirm' ? 'rgba(0,230,118,0.5)' : theme.cardBorder}`, background: votes[post.id] === 'confirm' ? 'rgba(0,230,118,0.12)' : 'transparent', color: votes[post.id] === 'confirm' ? '#00e676' : theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                       >
-                        <ThumbsUp size={14} /> {post.confirms + (votes[post.id] === 'confirm' ? 1 : 0)}
+                        <ThumbsUp size={14} /> {(post.confirms_count ?? 0) + (votes[post.id] === 'confirm' ? 1 : 0)}
                       </HapticButton>
                       <HapticButton
                         onClick={() => handleVote(post.id, 'deny')}
                         style={{ flex: 1, padding: '8px', borderRadius: '9px', fontSize: '12px', fontWeight: 700, border: `1px solid ${votes[post.id] === 'deny' ? 'rgba(255,77,109,0.5)' : theme.cardBorder}`, background: votes[post.id] === 'deny' ? 'rgba(255,77,109,0.12)' : 'transparent', color: votes[post.id] === 'deny' ? '#ff4d6d' : theme.textMuted, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}
                       >
-                        <ThumbsDown size={14} /> {post.denies + (votes[post.id] === 'deny' ? 1 : 0)}
+                        <ThumbsDown size={14} /> {(post.denies_count ?? 0) + (votes[post.id] === 'deny' ? 1 : 0)}
                       </HapticButton>
                     </div>
                   </div>
@@ -344,7 +369,7 @@ function Dashboard() {
           isOpen={!!bottomSheetPost}
           onClose={() => setBottomSheetPost(null)}
           post={bottomSheetPost}
-          onAddComment={handleBottomSheetComment}
+          onAddComment={(id) => handleBottomSheetComment(id)}
         />
 
       </main>

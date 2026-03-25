@@ -1,215 +1,35 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useTheme } from "../context/ThemeContext";
+import { getPosts } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import HapticButton from "../components/HapticButton";
 import { SkeletonProduct } from "../components/SkeletonCard";
 
-const allProducts = [
-  {
-    name: "Garri (1kg)",
-    category: "Food & Groceries",
-    reports: [
-      {
-        market: "Mile 12 Market",
-        state: "Lagos",
-        price: 800,
-        user: "Chidi O.",
-        date: "March 8, 2026",
-      },
-      {
-        market: "Bodija Market",
-        state: "Oyo",
-        price: 650,
-        user: "Amaka B.",
-        date: "March 7, 2026",
-      },
-      {
-        market: "Wuse Market",
-        state: "FCT - Abuja",
-        price: 950,
-        user: "Emeka T.",
-        date: "March 6, 2026",
-      },
-      {
-        market: "Kantin Kwari",
-        state: "Kano",
-        price: 600,
-        user: "Fatima M.",
-        date: "March 5, 2026",
-      },
-      {
-        market: "Idumota Market",
-        state: "Lagos",
-        price: 1100,
-        user: "Bola A.",
-        date: "March 4, 2026",
-      },
-    ],
-  },
-  {
-    name: "Rice (50kg bag)",
-    category: "Food & Groceries",
-    reports: [
-      {
-        market: "Mile 12 Market",
-        state: "Lagos",
-        price: 85000,
-        user: "Ngozi K.",
-        date: "March 8, 2026",
-      },
-      {
-        market: "Bodija Market",
-        state: "Oyo",
-        price: 78000,
-        user: "Chidi O.",
-        date: "March 7, 2026",
-      },
-      {
-        market: "Kantin Kwari",
-        state: "Kano",
-        price: 72000,
-        user: "Fatima M.",
-        date: "March 6, 2026",
-      },
-      {
-        market: "Wuse Market",
-        state: "FCT - Abuja",
-        price: 90000,
-        user: "Emeka T.",
-        date: "March 5, 2026",
-      },
-    ],
-  },
-  {
-    name: "Tomatoes (basket)",
-    category: "Vegetables & Fruits",
-    reports: [
-      {
-        market: "Mile 12 Market",
-        state: "Lagos",
-        price: 4000,
-        user: "Amaka B.",
-        date: "March 8, 2026",
-      },
-      {
-        market: "Bodija Market",
-        state: "Oyo",
-        price: 3500,
-        user: "Chidi O.",
-        date: "March 7, 2026",
-      },
-      {
-        market: "Wuse Market",
-        state: "FCT - Abuja",
-        price: 4500,
-        user: "Emeka T.",
-        date: "March 6, 2026",
-      },
-      {
-        market: "Kantin Kwari",
-        state: "Kano",
-        price: 3000,
-        user: "Fatima M.",
-        date: "March 5, 2026",
-      },
-    ],
-  },
-  {
-    name: "Petrol (litre)",
-    category: "Fuel & Energy",
-    reports: [
-      {
-        market: "NNPC Station",
-        state: "Lagos",
-        price: 897,
-        user: "Bola A.",
-        date: "March 8, 2026",
-      },
-      {
-        market: "Total Station",
-        state: "Oyo",
-        price: 910,
-        user: "Ngozi K.",
-        date: "March 7, 2026",
-      },
-      {
-        market: "Ardova Station",
-        state: "FCT - Abuja",
-        price: 880,
-        user: "Chidi O.",
-        date: "March 6, 2026",
-      },
-      {
-        market: "AP Station",
-        state: "Rivers",
-        price: 920,
-        user: "Emeka T.",
-        date: "March 5, 2026",
-      },
-    ],
-  },
-  {
-    name: "Chicken (1kg)",
-    category: "Meat & Poultry",
-    reports: [
-      {
-        market: "Mile 12 Market",
-        state: "Lagos",
-        price: 3200,
-        user: "Amaka B.",
-        date: "March 8, 2026",
-      },
-      {
-        market: "Wuse Market",
-        state: "FCT - Abuja",
-        price: 2800,
-        user: "Emeka T.",
-        date: "March 7, 2026",
-      },
-      {
-        market: "Bodija Market",
-        state: "Oyo",
-        price: 2500,
-        user: "Chidi O.",
-        date: "March 6, 2026",
-      },
-      {
-        market: "Kantin Kwari",
-        state: "Kano",
-        price: 2600,
-        user: "Fatima M.",
-        date: "March 5, 2026",
-      },
-    ],
-  },
-  {
-    name: "Paracetamol (pack)",
-    category: "Healthcare",
-    reports: [
-      {
-        market: "Idumota Market",
-        state: "Lagos",
-        price: 500,
-        user: "Ngozi K.",
-        date: "March 8, 2026",
-      },
-      {
-        market: "Wuse Market",
-        state: "FCT - Abuja",
-        price: 450,
-        user: "Emeka T.",
-        date: "March 7, 2026",
-      },
-      {
-        market: "Bodija Market",
-        state: "Oyo",
-        price: 400,
-        user: "Amaka B.",
-        date: "March 6, 2026",
-      },
-    ],
-  },
-];
+// Transform flat posts array from API into grouped-by-product format
+function groupPostsByProduct(posts) {
+  const map = {};
+  posts.forEach((post) => {
+    const key = (post.product || "Unknown").trim();
+    if (!map[key]) {
+      map[key] = { name: key, category: post.category || "General", reports: [] };
+    }
+    map[key].reports.push({
+      id: post.id,
+      market: post.market || "Unknown Market",
+      state: post.state || "",
+      price: Number(post.price) || 0,
+      user: post.user?.name || "Anonymous",
+      date: post.created_at
+        ? new Date(post.created_at).toLocaleDateString("en-NG", {
+            day: "numeric", month: "long", year: "numeric",
+          })
+        : "",
+    });
+  });
+  return Object.values(map);
+}
+
+
 
 const categoryColors = {
   "Food & Groceries": "#00e676",
@@ -233,18 +53,40 @@ function ComparePrices() {
   const theme = useTheme();
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sortOrder, setSortOrder] = useState("lowest");
+  const debounceRef = useRef(null);
 
-  useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 1500);
-    return () => clearTimeout(t);
+  const fetchProducts = useCallback(async (query) => {
+    setLoading(true);
+    try {
+      const params = { per_page: 200 };
+      if (query) params.search = query;
+      const res = await getPosts(params);
+      const posts = res.data?.data ?? res.data ?? [];
+      setProducts(groupPostsByProduct(Array.isArray(posts) ? posts : []));
+    } catch {
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const filtered = allProducts.filter((p) =>
-    p.name.toLowerCase().includes(search.toLowerCase()),
-  );
+  // Initial load
+  useEffect(() => { fetchProducts(""); }, [fetchProducts]);
+
+  // Debounced search re-fetch
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchProducts(search.trim());
+    }, 500);
+    return () => clearTimeout(debounceRef.current);
+  }, [search, fetchProducts]);
+
+  const filtered = products;
   const getMin = (r) => Math.min(...r.map((x) => x.price));
   const getMax = (r) => Math.max(...r.map((x) => x.price));
   const getAvg = (r) =>
@@ -403,9 +245,9 @@ function ComparePrices() {
               }}
             >
               <span style={{ color: theme.text, fontWeight: 700 }}>
-                {filtered.length}
+                {loading ? "…" : filtered.length}
               </span>{" "}
-              products — tap one to compare
+              product{filtered.length !== 1 ? "s" : ""} — tap one to compare
             </p>
 
             {/* 1 col mobile, 2 col desktop */}
@@ -441,7 +283,7 @@ function ComparePrices() {
                       marginBottom: "8px",
                     }}
                   >
-                    No products found
+                    No price reports found
                   </h3>
                   <p
                     style={{
@@ -450,7 +292,8 @@ function ComparePrices() {
                       marginBottom: "24px",
                     }}
                   >
-                    Try searching for something else
+                    {search ? "No reports match your search. Try a different term or " : "No price reports yet. "}
+                    be the first to submit one!
                   </p>
                   <HapticButton
                     onClick={() => setSearch("")}

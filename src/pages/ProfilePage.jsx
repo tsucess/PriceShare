@@ -1,7 +1,9 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
+import { getMe, updateMe, getUserPosts, uploadImage } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import HapticButton from "../components/HapticButton";
 import { ArrowLeft, Camera, Lock, Globe, Check, Upload, X } from "lucide-react";
@@ -67,39 +69,77 @@ function ProfilePage() {
   const navigate = useNavigate();
   const theme = useTheme();
   const { showToast } = useToast();
+  const { user: authUser } = useAuth();
   const fileInputRef = useRef(null);
   const cameraInputRef = useRef(null);
 
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [userPosts, setUserPosts] = useState([]);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatarTab, setAvatarTab] = useState("upload"); // 'upload' | 'preset' | 'gradient'
 
   // Avatar state — can be: { type: 'image', src: '...' } | { type: 'preset', id: 'a1' } | { type: 'gradient', index: 0 }
   const [avatar, setAvatar] = useState({ type: "gradient", index: 0 });
   const [tempAvatar, setTempAvatar] = useState(null); // holds selection before confirming
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   const [profile, setProfile] = useState({
-    fullName: "Chidi Okeke",
-    username: "chidi_okeke",
-    bio: "Price reporter from Lagos. Helping Nigerians shop smarter 🇳🇬",
-    phone: "+234 801 234 5678",
-    state: "Lagos",
-    occupation: "Trader / Seller",
-    gender: "Male",
-    dob: "1995-04-12",
+    fullName: "",
+    username: "",
+    bio: "",
+    phone: "",
+    state: "",
+    occupation: "",
+    gender: "",
+    dob: "",
     visibility: "public",
   });
 
   const [form, setForm] = useState({ ...profile });
 
-  const initials = profile.fullName
+  const loadProfile = useCallback(async () => {
+    setLoadingProfile(true);
+    try {
+      const [meRes, postsRes] = await Promise.all([
+        getMe(),
+        authUser ? getUserPosts(authUser.id) : Promise.resolve({ data: { data: [] } }),
+      ]);
+      const u = meRes.data?.user ?? meRes.data;
+      const loaded = {
+        fullName: u.name || "",
+        username: u.username || "",
+        bio: u.bio || "",
+        phone: u.phone || "",
+        state: u.state || "",
+        occupation: u.occupation || "",
+        gender: u.gender || "",
+        dob: u.dob || "",
+        visibility: u.visibility || "public",
+      };
+      setProfile(loaded);
+      setForm(loaded);
+      if (u.avatar_url) setAvatar({ type: "image", src: u.avatar_url });
+      const posts = postsRes.data?.data ?? postsRes.data ?? [];
+      setUserPosts(Array.isArray(posts) ? posts : []);
+    } catch {
+      showToast("Could not load profile.", "error");
+    } finally {
+      setLoadingProfile(false);
+    }
+  }, [authUser, showToast]);
+
+  useEffect(() => { loadProfile(); }, [loadProfile]);
+
+  const initials = (profile.fullName || "U")
     .split(" ")
     .map((n) => n[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
 
-  // Handle file upload from device
+  // Handle file upload from device — stores file object for later upload
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -109,15 +149,30 @@ function ProfilePage() {
     }
     const reader = new FileReader();
     reader.onload = (ev) =>
-      setTempAvatar({ type: "image", src: ev.target.result });
+      setTempAvatar({ type: "image", src: ev.target.result, file });
     reader.readAsDataURL(file);
   };
 
-  const handleAvatarConfirm = () => {
-    if (tempAvatar) setAvatar(tempAvatar);
-    setShowAvatarModal(false);
-    setTempAvatar(null);
-    showToast("Avatar updated! 🎉", "success");
+  const handleAvatarConfirm = async () => {
+    if (!tempAvatar) { setShowAvatarModal(false); return; }
+    setUploadingAvatar(true);
+    try {
+      if (tempAvatar.file) {
+        const res = await uploadImage(tempAvatar.file);
+        const url = res.data?.url;
+        await updateMe({ avatar_url: url });
+        setAvatar({ type: "image", src: url });
+      } else {
+        setAvatar(tempAvatar);
+      }
+      setShowAvatarModal(false);
+      setTempAvatar(null);
+      showToast("Avatar updated! 🎉", "success");
+    } catch {
+      showToast("Could not upload avatar.", "error");
+    } finally {
+      setUploadingAvatar(false);
+    }
   };
 
   const handleAvatarCancel = () => {
@@ -183,19 +238,31 @@ function ProfilePage() {
     );
   };
 
-  const handleSave = () => {
-    if (!form.fullName.trim()) {
-      showToast("Full name is required", "warning");
-      return;
+  const handleSave = async () => {
+    if (!form.fullName.trim()) { showToast("Full name is required", "warning"); return; }
+    if (!form.username.trim()) { showToast("Username is required", "warning"); return; }
+    setSaving(true);
+    try {
+      await updateMe({
+        name: form.fullName,
+        username: form.username,
+        bio: form.bio,
+        state: form.state,
+        occupation: form.occupation,
+        gender: form.gender,
+        dob: form.dob || undefined,
+        visibility: form.visibility,
+      });
+      setProfile({ ...form });
+      setEditing(false);
+      localStorage.setItem("pw-profile-complete", "true");
+      showToast("Profile updated! 🎉", "success");
+    } catch (err) {
+      const msg = err.response?.data?.message || "Could not save profile.";
+      showToast(msg, "error");
+    } finally {
+      setSaving(false);
     }
-    if (!form.username.trim()) {
-      showToast("Username is required", "warning");
-      return;
-    }
-    setProfile({ ...form });
-    setEditing(false);
-    localStorage.setItem("pw-profile-complete", "true");
-    showToast("Profile updated! 🎉", "success");
   };
 
   const handleCancel = () => {
@@ -338,20 +405,21 @@ function ProfilePage() {
               </HapticButton>
               <HapticButton
                 onClick={handleSave}
+                disabled={saving}
                 style={{
                   padding: "8px 20px",
                   borderRadius: "9px",
                   fontSize: "13px",
                   fontWeight: 700,
-                  background: `linear-gradient(135deg, ${theme.accent}, #00c853)`,
-                  color: "#0a0a0f",
+                  background: saving ? theme.cardBorder : `linear-gradient(135deg, ${theme.accent}, #00c853)`,
+                  color: saving ? theme.textMuted : "#0a0a0f",
                   border: "none",
                   display: "flex",
                   alignItems: "center",
                   gap: "6px",
                 }}
               >
-                <Check size={14} /> Save
+                <Check size={14} /> {saving ? "Saving..." : "Save"}
               </HapticButton>
             </div>
           )}
@@ -487,9 +555,9 @@ function ProfilePage() {
           }}
         >
           {[
-            { label: "Posts", value: "3", color: theme.accent },
-            { label: "Likes", value: "73", color: "#ff4d6d" },
-            { label: "Comments", value: "16", color: "#00b0ff" },
+            { label: "Posts", value: String(userPosts.length), color: theme.accent },
+            { label: "Likes", value: String(userPosts.reduce((a, p) => a + (p.likes_count || 0), 0)), color: "#ff4d6d" },
+            { label: "Comments", value: String(userPosts.reduce((a, p) => a + (p.comments_count || 0), 0)), color: "#00b0ff" },
           ].map((s) => (
             <div
               key={s.label}
@@ -1086,7 +1154,7 @@ function ProfilePage() {
               </HapticButton>
               <HapticButton
                 onClick={handleAvatarConfirm}
-                disabled={!tempAvatar}
+                disabled={!tempAvatar || uploadingAvatar}
                 style={{
                   flex: 2,
                   padding: "12px",
@@ -1094,14 +1162,14 @@ function ProfilePage() {
                   fontSize: "14px",
                   fontWeight: 800,
                   border: "none",
-                  background: tempAvatar
+                  background: (tempAvatar && !uploadingAvatar)
                     ? `linear-gradient(135deg, ${theme.accent}, #00c853)`
                     : theme.cardBorder,
-                  color: tempAvatar ? "#0a0a0f" : theme.textMuted,
+                  color: (tempAvatar && !uploadingAvatar) ? "#0a0a0f" : theme.textMuted,
                   transition: "all 0.3s",
                 }}
               >
-                {tempAvatar ? "Use This Photo" : "Select an option above"}
+                {uploadingAvatar ? "⏳ Uploading..." : tempAvatar ? "Use This Photo" : "Select an option above"}
               </HapticButton>
             </div>
           </div>
