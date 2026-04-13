@@ -3,7 +3,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
 import {
   adminListPosts, adminEditPost,
-  adminFlagPost, adminUnflagPost,
+  adminFlagPost, adminUnflagPost, adminExportPosts,
   adminHidePost, adminUnhidePost,
   adminDeletePost,
 } from '../../services/api';
@@ -30,6 +30,25 @@ function AdminPosts() {
   const [editTarget, setEditTarget] = useState(null);
   const [editForm, setEditForm]     = useState(EMPTY_EDIT);
   const [saving, setSaving]         = useState(false);
+  const [exporting, setExporting]   = useState(false);
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    try {
+      const params = {};
+      if (categoryFilter) params.category = categoryFilter;
+      if (hiddenFilter !== '') params.is_hidden = hiddenFilter;
+      const res = await adminExportPosts(params);
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `priceshare-posts-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('CSV exported! 📊', 'success');
+    } catch { showToast('Export failed.', 'error'); }
+    finally { setExporting(false); }
+  };
 
   const fetchPosts = useCallback(() => {
     setLoading(true);
@@ -89,10 +108,15 @@ function AdminPosts() {
     <div style={{ display:'flex', minHeight:'100vh', background:theme.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
       <AdminSidebar />
       <main className="admin-main" style={{ flex:1, overflowX:'hidden' }}>
-        <div style={{ marginBottom:'24px' }}>
-          <div style={{ fontSize:'10px', color:theme.textMuted, letterSpacing:'3px', textTransform:'uppercase', marginBottom:'4px' }}>Admin Panel</div>
-          <h1 style={{ fontSize:'24px', fontWeight:900, color:theme.text, margin:0 }}>Post Moderation</h1>
-          <p style={{ fontSize:'13px', color:theme.textMuted, marginTop:'4px' }}>{loading?'Loading…':`${Array.isArray(posts)?posts.length:0} posts`}</p>
+        <div style={{ marginBottom:'24px', display:'flex', justifyContent:'space-between', alignItems:'flex-end', flexWrap:'wrap', gap:'12px' }}>
+          <div>
+            <div style={{ fontSize:'10px', color:theme.textMuted, letterSpacing:'3px', textTransform:'uppercase', marginBottom:'4px' }}>Admin Panel</div>
+            <h1 style={{ fontSize:'24px', fontWeight:900, color:theme.text, margin:0 }}>Post Moderation</h1>
+            <p style={{ fontSize:'13px', color:theme.textMuted, marginTop:'4px' }}>{loading?'Loading…':`${Array.isArray(posts)?posts.length:0} posts`}</p>
+          </div>
+          <HapticButton onClick={handleExportCSV} disabled={exporting} style={{ padding:'10px 20px', borderRadius:'10px', fontSize:'13px', fontWeight:700, background:exporting?theme.card:`linear-gradient(135deg,${theme.accent},#00c853)`, color:exporting?theme.textMuted:'#0a0a0f', border:exporting?`1px solid ${theme.cardBorder}`:'none', cursor:exporting?'not-allowed':'pointer', whiteSpace:'nowrap' }}>
+            {exporting ? '⏳ Exporting…' : '📥 Export CSV'}
+          </HapticButton>
         </div>
 
         {/* Filters */}

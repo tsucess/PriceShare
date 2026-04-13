@@ -32,11 +32,14 @@ export const updateSettings = (data) => api.put('/users/me/settings', data);
 export const deleteMe       = ()     => api.delete('/users/me');
 
 // ── Posts ──────────────────────────────────────────────────────────────────
-export const getPosts   = (params) => api.get('/posts', { params });
-export const getPost    = (id)     => api.get(`/posts/${id}`);
-export const createPost = (data)   => api.post('/posts', data);
-export const updatePost = (id, data) => api.put(`/posts/${id}`, data);
-export const deletePost = (id)     => api.delete(`/posts/${id}`);
+export const getPosts        = (params) => api.get('/posts', { params });
+export const getPost         = (id)     => api.get(`/posts/${id}`);
+export const createPost      = (data)   => api.post('/posts', data);
+export const updatePost      = (id, data) => api.put(`/posts/${id}`, data);
+export const deletePost      = (id)     => api.delete(`/posts/${id}`);
+export const compareProducts = (params) => api.get('/posts/compare', { params });
+export const getProductHistory = (product, state) => api.get('/posts/history', { params: { product, state } });
+export const checkPriceOutlier = (product, state, price) => api.get('/posts/price-check', { params: { product, state, price } });
 
 // ── Reactions ──────────────────────────────────────────────────────────────
 export const likePost = (id)           => api.post(`/posts/${id}/like`);
@@ -111,6 +114,11 @@ export const adminListTags   = ()          => api.get('/admin/tags');
 export const adminCreateTag  = (data)      => api.post('/admin/tags', data);
 export const adminUpdateTag  = (id, data)  => api.put(`/admin/tags/${id}`, data);
 export const adminDeleteTag  = (id)        => api.delete(`/admin/tags/${id}`);
+
+// Admin – Analytics, Export, Audit Log
+export const adminGetAnalytics  = ()       => api.get('/admin/analytics');
+export const adminExportPosts   = (params) => api.get('/admin/posts/export', { params, responseType: 'blob' });
+export const adminListAuditLog  = (params) => api.get('/admin/audit-log', { params });
 
 export default api;
 

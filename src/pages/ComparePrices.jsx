@@ -1,30 +1,31 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useTheme } from "../context/ThemeContext";
-import { getPosts } from "../services/api";
+import { compareProducts, getProductHistory } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import HapticButton from "../components/HapticButton";
 import { SkeletonProduct } from "../components/SkeletonCard";
 
-// Transform flat posts array from API into grouped-by-product format
-function groupPostsByProduct(posts) {
+// Transform aggregated compare rows into grouped-by-product format
+function groupCompareData(rows) {
   const map = {};
-  posts.forEach((post) => {
-    const key = (post.product || "Unknown").trim();
+  rows.forEach((row) => {
+    const key = (row.product || "Unknown").trim();
     if (!map[key]) {
-      map[key] = { name: key, category: post.category || "General", reports: [] };
+      map[key] = { name: key, category: row.category || "General", reports: [], totalCount: 0 };
     }
     map[key].reports.push({
-      id: post.id,
-      market: post.market || "Unknown Market",
-      state: post.state || "",
-      price: Number(post.price) || 0,
-      user: post.user?.name || "Anonymous",
-      date: post.created_at
-        ? new Date(post.created_at).toLocaleDateString("en-NG", {
-            day: "numeric", month: "long", year: "numeric",
-          })
+      id: `${row.product}-${row.state}`,
+      market: row.state,
+      state: row.state || "",
+      price: Number(row.avg_price) || 0,
+      min_price: Number(row.min_price) || 0,
+      max_price: Number(row.max_price) || 0,
+      count: Number(row.report_count) || 1,
+      date: row.latest_report
+        ? new Date(row.latest_report).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })
         : "",
     });
+    map[key].totalCount += Number(row.report_count) || 0;
   });
   return Object.values(map);
 }
@@ -57,16 +58,18 @@ function ComparePrices() {
   const [search, setSearch] = useState("");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [sortOrder, setSortOrder] = useState("lowest");
+  const [historyData, setHistoryData] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const debounceRef = useRef(null);
 
   const fetchProducts = useCallback(async (query) => {
     setLoading(true);
     try {
-      const params = { per_page: 200 };
+      const params = {};
       if (query) params.search = query;
-      const res = await getPosts(params);
-      const posts = res.data?.data ?? res.data ?? [];
-      setProducts(groupPostsByProduct(Array.isArray(posts) ? posts : []));
+      const res = await compareProducts(params);
+      const rows = res.data ?? [];
+      setProducts(groupCompareData(Array.isArray(rows) ? rows : []));
     } catch {
       setProducts([]);
     } finally {
@@ -85,6 +88,16 @@ function ComparePrices() {
     }, 500);
     return () => clearTimeout(debounceRef.current);
   }, [search, fetchProducts]);
+
+  // Load individual history reports when a product is selected
+  useEffect(() => {
+    if (!selectedProduct) { setHistoryData([]); return; }
+    setHistoryLoading(true);
+    getProductHistory(selectedProduct.name)
+      .then(r => setHistoryData(r.data ?? []))
+      .catch(() => setHistoryData([]))
+      .finally(() => setHistoryLoading(false));
+  }, [selectedProduct]);
 
   const filtered = products;
   const getMin = (r) => Math.min(...r.map((x) => x.price));
@@ -370,7 +383,7 @@ function ComparePrices() {
                             flexShrink: 0,
                           }}
                         >
-                          {product.reports.length} reports
+                          {product.totalCount ?? product.reports.length} reports
                         </span>
                       </div>
                       <div
@@ -515,8 +528,7 @@ function ComparePrices() {
                   margin: "0 0 16px",
                 }}
               >
-                {selectedProduct.category} · {selectedProduct.reports.length}{" "}
-                reports
+                {selectedProduct.category} · {selectedProduct.totalCount ?? selectedProduct.reports.length} reports across {selectedProduct.reports.length} state{selectedProduct.reports.length !== 1 ? 's' : ''}
               </p>
               <div
                 style={{
@@ -752,7 +764,7 @@ function ComparePrices() {
                           marginTop: "5px",
                         }}
                       >
-                        Reported by {report.user} · {report.date}
+                        {report.count > 1 ? `${report.count} reports` : '1 report'} · avg ₦{Math.round(report.price).toLocaleString()} · last {report.date}
                       </p>
                     </div>
                   );
@@ -760,7 +772,7 @@ function ComparePrices() {
               </div>
             </div>
 
-            {/* ALL REPORTS */}
+            {/* ALL REPORTS — real history from API */}
             <div
               style={{
                 background: theme.card,
@@ -770,99 +782,39 @@ function ComparePrices() {
                 marginBottom: "40px",
               }}
             >
-              <h3
-                style={{
-                  fontSize: "14px",
-                  fontWeight: 700,
-                  color: theme.text,
-                  marginBottom: "16px",
-                }}
-              >
-                All Reports
+              <h3 style={{ fontSize: "14px", fontWeight: 700, color: theme.text, marginBottom: "16px" }}>
+                📋 Individual Reports ({historyData.length})
               </h3>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
-                }}
-              >
-                {getSorted(selectedProduct.reports).map((report, i) => {
-                  const min = getMin(selectedProduct.reports);
-                  const max = getMax(selectedProduct.reports);
-                  return (
-                    <div
-                      key={i}
-                      style={{
-                        background: theme.pill,
-                        borderRadius: "12px",
-                        padding: "14px",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: "12px",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                            marginBottom: "4px",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: "13px",
-                              fontWeight: 700,
-                              color: theme.text,
-                            }}
-                          >
-                            {report.market}
-                          </span>
-                          <PriceBadge
-                            price={report.price}
-                            min={min}
-                            max={max}
-                          />
+              {historyLoading ? (
+                <p style={{ color: theme.textMuted, fontSize: "13px", textAlign: "center", padding: "20px 0" }}>⏳ Loading reports…</p>
+              ) : historyData.length === 0 ? (
+                <p style={{ color: theme.textMuted, fontSize: "13px", textAlign: "center", padding: "20px 0" }}>No individual reports found.</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {historyData.map((r, i) => {
+                    const prices = historyData.map(h => Number(h.price));
+                    const min = Math.min(...prices);
+                    const max = Math.max(...prices);
+                    return (
+                      <div key={r.id ?? i} style={{ background: theme.pill, borderRadius: "12px", padding: "14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "13px", fontWeight: 700, color: theme.text }}>{r.market || r.state}</span>
+                            <PriceBadge price={Number(r.price)} min={min} max={max} />
+                          </div>
+                          <p style={{ fontSize: "11px", color: theme.textMuted, margin: "0 0 2px" }}>📍 {r.state}</p>
+                          <p style={{ fontSize: "11px", color: theme.textDim, margin: 0 }}>
+                            👤 {r.user?.name ?? 'Anonymous'} · {r.created_at ? new Date(r.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                          </p>
                         </div>
-                        <p
-                          style={{
-                            fontSize: "11px",
-                            color: theme.textMuted,
-                            margin: "0 0 2px",
-                          }}
-                        >
-                          📍 {report.state}
-                        </p>
-                        <p
-                          style={{
-                            fontSize: "11px",
-                            color: theme.textDim,
-                            margin: 0,
-                          }}
-                        >
-                          👤 {report.user} · {report.date}
-                        </p>
+                        <span style={{ fontSize: "18px", fontWeight: 800, color: getPriceColor(Number(r.price), min, max), whiteSpace: "nowrap", flexShrink: 0 }}>
+                          ₦{Number(r.price).toLocaleString()}
+                        </span>
                       </div>
-                      <span
-                        style={{
-                          fontSize: "18px",
-                          fontWeight: 800,
-                          color: getPriceColor(report.price, min, max),
-                          whiteSpace: "nowrap",
-                          flexShrink: 0,
-                        }}
-                      >
-                        ₦{report.price.toLocaleString()}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         )}

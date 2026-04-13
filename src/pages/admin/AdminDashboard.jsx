@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
 import { useToast } from '../../context/ToastContext';
-import { adminGetStats } from '../../services/api';
+import { adminGetStats, adminGetAnalytics, adminListAuditLog } from '../../services/api';
 import AdminSidebar from '../../components/AdminSidebar';
 import { Users, FileText, MessageSquare, AlertTriangle, Bell, TrendingUp, EyeOff } from 'lucide-react';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 function StatCard({ icon: Icon, label, value, color, onClick }) {
   const theme = useTheme();
@@ -28,16 +29,31 @@ function StatCard({ icon: Icon, label, value, color, onClick }) {
   );
 }
 
+const ACTION_LABELS = {
+  ban_user: '🚫 Banned',    unban_user: '✅ Unbanned',
+  shadow_ban_user: '👻 Shadow Banned', unshadow_ban_user: '👁 Unsilenced',
+  promote_user: '⬆️ Promoted', demote_user: '⬇️ Demoted',
+  delete_user: '🗑 Deleted User',
+  hide_post: '🙈 Hid Post', unhide_post: '👁 Unhid Post',
+  delete_post: '🗑 Deleted Post',
+  delete_comment: '🗑 Deleted Comment', flag_post: '🚩 Flagged', unflag_post: '🏳 Unflagged',
+};
+
 function AdminDashboard() {
   const theme = useTheme();
   const { showToast } = useToast();
   const navigate = useNavigate();
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats]         = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [auditLog, setAuditLog]   = useState([]);
+  const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
-    adminGetStats()
-      .then(r => setStats(r.data))
+    Promise.all([
+      adminGetStats().then(r => setStats(r.data)).catch(() => {}),
+      adminGetAnalytics().then(r => setAnalytics(r.data)).catch(() => {}),
+      adminListAuditLog({ per_page: 15 }).then(r => setAuditLog(r.data?.data ?? [])).catch(() => {}),
+    ])
       .catch(() => showToast('Could not load admin stats.', 'error'))
       .finally(() => setLoading(false));
   }, [showToast]);
@@ -136,7 +152,7 @@ function AdminDashboard() {
             </div>
 
             {/* Top States + Categories */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px', marginBottom: '24px' }}>
               <div style={cardStyle}>
                 <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: '0 0 16px' }}>📍 Top States by Posts</h3>
                 {(stats?.top_states ?? []).map((s, i) => (
@@ -155,6 +171,96 @@ function AdminDashboard() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Analytics Charts */}
+            {analytics && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+                <div style={cardStyle}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: '0 0 16px' }}>📈 Posts per Day (Last 30 Days)</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={analytics.postsPerDay ?? []} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} />
+                      <XAxis dataKey="date" tick={{ fill: theme.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={d => d?.slice(5)} />
+                      <YAxis tick={{ fill: theme.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '10px', fontSize: '12px' }} />
+                      <Line type="monotone" dataKey="count" stroke="#00b0ff" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div style={cardStyle}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: '0 0 16px' }}>🏆 Top Products Reported</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={analytics.topProducts ?? []} margin={{ top: 4, right: 8, bottom: 0, left: -20 }} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} />
+                      <XAxis type="number" tick={{ fill: theme.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="product" tick={{ fill: theme.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} width={90} />
+                      <Tooltip contentStyle={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '10px', fontSize: '12px' }} />
+                      <Bar dataKey="count" fill="#00e676" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div style={cardStyle}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: '0 0 16px' }}>👥 New Users per Day (Last 30 Days)</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart data={analytics.usersPerDay ?? []} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} />
+                      <XAxis dataKey="date" tick={{ fill: theme.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={d => d?.slice(5)} />
+                      <YAxis tick={{ fill: theme.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '10px', fontSize: '12px' }} />
+                      <Line type="monotone" dataKey="count" stroke="#a855f7" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div style={cardStyle}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: '0 0 16px' }}>🗺️ Posts by State (Top 10)</h3>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={analytics.postsByState ?? []} margin={{ top: 4, right: 8, bottom: 0, left: -20 }} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke={theme.cardBorder} />
+                      <XAxis type="number" tick={{ fill: theme.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis type="category" dataKey="state" tick={{ fill: theme.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
+                      <Tooltip contentStyle={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '10px', fontSize: '12px' }} />
+                      <Bar dataKey="count" fill="#ffd600" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* Audit Log */}
+            <div style={{ ...cardStyle, marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 700, color: theme.text, margin: 0 }}>🕵️ Recent Admin Actions</h3>
+              </div>
+              {auditLog.length === 0 ? (
+                <p style={{ color: theme.textMuted, fontSize: '13px' }}>No admin actions recorded yet.</p>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '540px' }}>
+                    <thead><tr>
+                      <th style={tableHead}>Admin</th>
+                      <th style={tableHead}>Action</th>
+                      <th style={tableHead}>Target</th>
+                      <th style={tableHead}>Reason</th>
+                      <th style={tableHead}>Time</th>
+                    </tr></thead>
+                    <tbody>
+                      {auditLog.map(log => (
+                        <tr key={log.id}>
+                          <td style={tableCell}>{log.admin_name}</td>
+                          <td style={tableCell}><span style={{ fontWeight: 700, color: theme.accent }}>{ACTION_LABELS[log.action] ?? log.action}</span></td>
+                          <td style={tableCell}>{log.target_label ?? `${log.target_type} #${log.target_id}`}</td>
+                          <td style={{ ...tableCell, color: theme.textMuted }}>{log.reason || '—'}</td>
+                          <td style={{ ...tableCell, color: theme.textMuted, whiteSpace: 'nowrap' }}>{new Date(log.created_at).toLocaleString('en-NG', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </>
         )}

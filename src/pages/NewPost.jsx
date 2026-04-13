@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-import { uploadImage, createPost, getCategories, getTags } from '../services/api';
+import { uploadImage, createPost, getCategories, getTags, checkPriceOutlier } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import HapticButton from '../components/HapticButton';
 import CameraCapture from '../components/CameraCapture';
@@ -49,6 +49,8 @@ function NewPost() {
   const [apiCategories, setApiCategories] = useState(FALLBACK_CATS);
   const [apiTags, setApiTags]         = useState([]);
   const [selectedTags, setSelectedTags] = useState([]); // array of tag ids
+  const [outlierWarning, setOutlierWarning] = useState(null); // {avg, ratio}
+  const [duplicateWarning, setDuplicateWarning] = useState(false); // force-submit after dup warning
   const [form, setForm] = useState({
     product: '', price: '', category: '', market: '',
     state: '', description: '', location: '', coords: null
@@ -86,6 +88,21 @@ function NewPost() {
     setSelectedTags(prev =>
       prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
     );
+  };
+
+  // Check outlier when user finishes typing price (on blur)
+  const handlePriceBlur = async () => {
+    const price = Number(form.price);
+    const state = form.state;
+    const product = form.product.trim();
+    if (!price || !state || !product) return;
+    setOutlierWarning(null);
+    try {
+      const res = await checkPriceOutlier(product, state, price);
+      if (res.data?.outlier && res.data?.sample_count >= 3) {
+        setOutlierWarning({ avg: res.data.avg, ratio: res.data.ratio });
+      }
+    } catch { /* ignore — don't block submission */ }
   };
 
   const handleDetectLocation = () => {
@@ -181,11 +198,20 @@ function NewPost() {
         image_url: imageUrl,
         coords: form.coords,
         tags: selectedTags,
+        force: duplicateWarning, // override duplicate guard on second attempt
       });
 
       setSubmitted(true);
+      setDuplicateWarning(false);
       showToast('Price report submitted! 🎉', 'success');
     } catch (err) {
+      // 409 = duplicate post in last 24h
+      if (err.response?.status === 409 && err.response?.data?.duplicate) {
+        setDuplicateWarning(true);
+        showToast('⚠️ You already reported this product here today. Tap Submit again to override.', 'warning');
+        setSubmitting(false);
+        return;
+      }
       const data = err.response?.data;
       const msg = data?.errors
         ? Object.values(data.errors).flat().join(' ')
@@ -330,8 +356,17 @@ function NewPost() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <label style={labelStyle}>Price (₦) *</label>
-                <input type="number" name="price" placeholder="e.g. 1500" value={form.price} onChange={(e) => { handleChange(e); setFieldErrors((p) => ({ ...p, price: '' })); }} style={{ ...inputStyle, borderColor: errBorder('price') }} />
+                <input type="number" name="price" placeholder="e.g. 1500" value={form.price}
+                  onChange={(e) => { handleChange(e); setFieldErrors((p) => ({ ...p, price: '' })); setOutlierWarning(null); }}
+                  onBlur={handlePriceBlur}
+                  style={{ ...inputStyle, borderColor: errBorder('price') }}
+                />
                 <ErrorMsg field="price" />
+                {outlierWarning && (
+                  <div style={{ fontSize: '12px', color: '#ffd600', background: 'rgba(255,214,0,0.08)', border: '1px solid rgba(255,214,0,0.25)', borderRadius: '8px', padding: '8px 12px', marginTop: '4px', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                    ⚠️ This price is <strong>{outlierWarning.ratio > 1 ? `${Math.round((outlierWarning.ratio - 1) * 100)}% above` : `${Math.round((1 - outlierWarning.ratio) * 100)}% below`}</strong> the state average of ₦{Math.round(outlierWarning.avg).toLocaleString()}. Double-check before submitting.
+                  </div>
+                )}
               </div>
             </div>
 

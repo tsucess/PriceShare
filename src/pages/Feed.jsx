@@ -64,6 +64,9 @@ function Feed() {
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [liked, setLiked] = useState({});     // { [postId]: true/false }
   const [votes, setVotes] = useState({});     // { [postId]: 'confirm'|'deny'|null }
   const [posts, setPosts] = useState([]);
@@ -80,16 +83,27 @@ function Feed() {
   const [pullDistance, setPullDistance] = useState(0);
   const [bottomSheetPost, setBottomSheetPost] = useState(null);
 
-  const fetchPosts = useCallback(async () => {
+  // Smart default: pre-filter to user's state when they first log in
+  useEffect(() => {
+    if (user?.state && filterState === 'All States') {
+      setFilterState(user.state);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.state]);
+
+  const fetchPosts = useCallback(async (page = 1, append = false) => {
     try {
-      const params = {};
+      const params = { page };
       if (filterState !== 'All States') params.state = filterState;
       if (filterCategory !== 'All Categories') params.category = filterCategory;
       if (search) params.search = search;
       params.sort = sortBy;
       const res = await getPosts(params);
-      const data = res.data.data ?? res.data;
-      setPosts(Array.isArray(data) ? data : data.data ?? []);
+      const paginated = res.data;
+      const items = paginated.data ?? (Array.isArray(paginated) ? paginated : []);
+      setPosts(prev => append ? [...prev, ...items] : items);
+      setHasMore(!!paginated.next_page_url);
+      setCurrentPage(paginated.current_page ?? page);
     } catch {
       showToast('Could not load feed. Retrying...', 'warning');
     }
@@ -122,17 +136,23 @@ function Feed() {
 
   useEffect(() => {
     setLoading(true);
-    fetchPosts().finally(() => setLoading(false));
+    fetchPosts(1, false).finally(() => setLoading(false));
   }, [fetchPosts]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
-      fetchPosts(),
+      fetchPosts(1, false),
       getDashboard().then((r) => setDashboard(r.data ?? {})).catch(() => {}),
     ]);
     showToast('Feed refreshed! 🔄', 'success');
     setRefreshing(false);
+  };
+
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    await fetchPosts(currentPage + 1, true);
+    setLoadingMore(false);
   };
 
   const handleTouchStart = (e) => setTouchStart(e.touches[0].clientY);
@@ -374,10 +394,21 @@ function Feed() {
           </div>
         )}
 
-        {/* RESULTS COUNT */}
-        <p style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '16px' }}>
-          Showing <span style={{ color: theme.text, fontWeight: 700 }}>{filtered.length}</span> price reports
-        </p>
+        {/* RESULTS COUNT + smart state hint */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+          <p style={{ fontSize: '12px', color: theme.textMuted, margin: 0 }}>
+            Showing <span style={{ color: theme.text, fontWeight: 700 }}>{filtered.length}</span> price reports
+            {filterState !== 'All States' && <span style={{ color: theme.accent }}> in {filterState}</span>}
+          </p>
+          {filterState !== 'All States' && (
+            <button
+              onClick={() => setFilterState('All States')}
+              style={{ fontSize: '11px', fontWeight: 700, color: theme.accent, background: `${theme.accent}15`, border: `1px solid ${theme.accent}30`, borderRadius: '6px', padding: '4px 10px', cursor: 'pointer' }}
+            >
+              🌍 Show All States
+            </button>
+          )}
+        </div>
 
         {/* POSTS — 1 col mobile, 2 col desktop */}
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)', gap: '16px' }}>
@@ -472,6 +503,19 @@ function Feed() {
             })
           )}
         </div>
+
+        {/* LOAD MORE */}
+        {hasMore && !loading && (
+          <div style={{ textAlign: 'center', marginTop: '24px', marginBottom: '8px' }}>
+            <HapticButton
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              style={{ padding: '13px 36px', borderRadius: '12px', fontSize: '14px', fontWeight: 700, background: loadingMore ? theme.card : `linear-gradient(135deg, ${theme.accent}, #00c853)`, color: loadingMore ? theme.textMuted : '#0a0a0f', border: loadingMore ? `1px solid ${theme.cardBorder}` : 'none', cursor: loadingMore ? 'not-allowed' : 'pointer' }}
+            >
+              {loadingMore ? '⏳ Loading more...' : '⬇ Load More Posts'}
+            </HapticButton>
+          </div>
+        )}
 
         <BottomSheet
           isOpen={!!bottomSheetPost}

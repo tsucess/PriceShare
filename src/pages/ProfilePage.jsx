@@ -124,6 +124,7 @@ function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [userPosts, setUserPosts] = useState([]);
+  const [trustScore, setTrustScore] = useState(null);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [avatarTab, setAvatarTab] = useState("upload"); // 'upload' | 'preset' | 'gradient'
 
@@ -168,6 +169,7 @@ function ProfilePage() {
       setProfile(loaded);
       setForm(loaded);
       if (u.avatar_url) setAvatar({ type: "image", src: u.avatar_url });
+      if (u.trust_score !== undefined && u.trust_score !== null) setTrustScore(u.trust_score);
       const posts = postsRes.data?.data ?? postsRes.data ?? [];
       setUserPosts(Array.isArray(posts) ? posts : []);
     } catch {
@@ -552,6 +554,13 @@ function ProfilePage() {
         </div>
 
         {/* STATS */}
+        {trustScore !== null && (
+          <div style={{ textAlign: 'center', marginBottom: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, padding: '5px 14px', borderRadius: '20px', background: trustScore >= 70 ? 'rgba(0,230,118,0.12)' : trustScore >= 40 ? 'rgba(255,214,0,0.12)' : 'rgba(255,77,109,0.1)', color: trustScore >= 70 ? '#00e676' : trustScore >= 40 ? '#ffd600' : '#ff4d6d', border: `1px solid ${trustScore >= 70 ? '#00e67640' : trustScore >= 40 ? '#ffd60040' : '#ff4d6d40'}` }}>
+              {trustScore >= 70 ? '✅' : trustScore >= 40 ? '⚠️' : '❗'} Trust Score: {trustScore}%
+            </span>
+          </div>
+        )}
         <div
           style={{
             display: "grid",

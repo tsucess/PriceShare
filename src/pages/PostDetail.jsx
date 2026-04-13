@@ -3,9 +3,10 @@ import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
 import { useAuth } from "../context/AuthContext";
-import { getPost, likePost, getComments, addComment } from "../services/api";
+import { getPost, likePost, getComments, addComment, getProductHistory, compareProducts } from "../services/api";
 import Sidebar from "../components/Sidebar";
 import HapticButton from "../components/HapticButton";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 const categoryColors = {
   "Food & Groceries": "#00e676",
@@ -33,6 +34,8 @@ function PostDetail() {
   const [commentInput, setCommentInput] = useState("");
   const [addingComment, setAddingComment] = useState(false);
   const [reported, setReported] = useState(false);
+  const [historyData, setHistoryData] = useState([]);
+  const [priceContext, setPriceContext] = useState(null); // {avg, min, max}
 
   // Fetch post by ID when not available in router state
   useEffect(() => {
@@ -63,6 +66,30 @@ function PostDetail() {
   useEffect(() => {
     if (post?.id) fetchComments(post.id);
   }, [post?.id, fetchComments]);
+
+  // Load price history + real price context when post is available
+  useEffect(() => {
+    if (!post?.product || !post?.state) return;
+    getProductHistory(post.product, post.state)
+      .then(r => {
+        const items = r.data ?? [];
+        const sorted = [...items].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+        setHistoryData(sorted.map(h => ({
+          date: new Date(h.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' }),
+          price: Number(h.price),
+        })));
+      })
+      .catch(() => {});
+    compareProducts({ search: post.product })
+      .then(r => {
+        const rows = (r.data ?? []).filter(row => row.state === post.state && row.product?.toLowerCase() === post.product?.toLowerCase());
+        if (rows.length > 0) {
+          const row = rows[0];
+          setPriceContext({ avg: Number(row.avg_price), min: Number(row.min_price), max: Number(row.max_price) });
+        }
+      })
+      .catch(() => {});
+  }, [post?.product, post?.state]);
 
   const handleLike = async () => {
     if (!user) { showToast('Sign in to like posts', 'warning'); return; }
@@ -101,8 +128,16 @@ function PostDetail() {
     showToast("Price reported to authorities 🏛️", "warning");
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
     const url = `${window.location.origin}${window.location.pathname}#/post/${post?.id}`;
+    const shareData = {
+      title: `${post?.product} — ₦${Number(post?.price).toLocaleString()} in ${post?.state}`,
+      text: `Found a price report on PriceShare: ${post?.product} is selling for ₦${Number(post?.price).toLocaleString()} at ${post?.market}, ${post?.state}.`,
+      url,
+    };
+    if (navigator.share && navigator.canShare?.(shareData)) {
+      try { await navigator.share(shareData); return; } catch { /* user cancelled */ }
+    }
     navigator.clipboard?.writeText(url).catch(() => {});
     showToast("Share link copied! 🔗", "success");
   };
@@ -386,84 +421,55 @@ function PostDetail() {
           </div>
         </div>
 
-        {/* PRICE CONTEXT */}
-        <div
-          style={{
-            background: `${catColor}10`,
-            border: `1px solid ${catColor}25`,
-            borderRadius: "14px",
-            padding: "14px 16px",
-            marginBottom: "16px",
-          }}
-        >
-          <p
-            style={{
-              fontSize: "12px",
-              fontWeight: 700,
-              color: catColor,
-              margin: "0 0 10px",
-            }}
-          >
-            💡 Price Context
+        {/* REAL PRICE CONTEXT — from /api/posts/compare */}
+        <div style={{ background: `${catColor}10`, border: `1px solid ${catColor}25`, borderRadius: "14px", padding: "14px 16px", marginBottom: "16px" }}>
+          <p style={{ fontSize: "12px", fontWeight: 700, color: catColor, margin: "0 0 10px" }}>
+            💡 Price Context in {post.state}
           </p>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "10px",
-            }}
-          >
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
             {[
-              {
-                label: "This Price",
-                value: `₦${Number(post.price).toLocaleString()}`,
-                color: theme.text,
-              },
-              {
-                label: "Avg in State",
-                value: `₦${Math.round(Number(post.price) * 1.12).toLocaleString()}`,
-                color: "#ffd600",
-              },
-              {
-                label: "Lowest Found",
-                value: `₦${Math.round(Number(post.price) * 0.85).toLocaleString()}`,
-                color: "#00e676",
-              },
+              { label: "This Price", value: `₦${Number(post.price).toLocaleString()}`, color: theme.text },
+              { label: "State Avg",  value: priceContext ? `₦${Math.round(priceContext.avg).toLocaleString()}` : '—', color: "#ffd600" },
+              { label: "State Min",  value: priceContext ? `₦${Math.round(priceContext.min).toLocaleString()}` : '—', color: "#00e676" },
             ].map((p) => (
-              <div
-                key={p.label}
-                style={{
-                  textAlign: "center",
-                  background: theme.pill,
-                  borderRadius: "10px",
-                  padding: "10px 6px",
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: "9px",
-                    color: theme.textMuted,
-                    margin: "0 0 4px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  {p.label}
-                </p>
-                <p
-                  style={{
-                    fontSize: "14px",
-                    fontWeight: 800,
-                    color: p.color,
-                    margin: 0,
-                  }}
-                >
-                  {p.value}
-                </p>
+              <div key={p.label} style={{ textAlign: "center", background: theme.pill, borderRadius: "10px", padding: "10px 6px" }}>
+                <p style={{ fontSize: "9px", color: theme.textMuted, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>{p.label}</p>
+                <p style={{ fontSize: "14px", fontWeight: 800, color: p.color, margin: 0 }}>{p.value}</p>
               </div>
             ))}
           </div>
+          {priceContext && (
+            <p style={{ fontSize: "11px", color: theme.textMuted, marginTop: "10px", marginBottom: 0, textAlign: "center" }}>
+              {Number(post.price) < priceContext.avg
+                ? `✅ This price is ${Math.round((1 - Number(post.price) / priceContext.avg) * 100)}% below the state average — a good deal!`
+                : Number(post.price) > priceContext.avg
+                  ? `⚠️ This price is ${Math.round((Number(post.price) / priceContext.avg - 1) * 100)}% above the state average.`
+                  : `📊 This price matches the state average.`}
+            </p>
+          )}
         </div>
+
+        {/* PRICE HISTORY CHART */}
+        {historyData.length > 1 && (
+          <div style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: "14px", padding: "16px", marginBottom: "16px" }}>
+            <p style={{ fontSize: "12px", fontWeight: 700, color: theme.text, margin: "0 0 12px" }}>
+              📈 Price History — {post.product} in {post.state}
+              <span style={{ fontWeight: 400, color: theme.textMuted, marginLeft: '8px' }}>({historyData.length} reports)</span>
+            </p>
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={historyData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                <XAxis dataKey="date" tick={{ fill: theme.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: theme.textMuted, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `₦${v.toLocaleString()}`} width={70} />
+                <Tooltip
+                  contentStyle={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '10px', fontSize: '12px', color: theme.text }}
+                  formatter={(v) => [`₦${Number(v).toLocaleString()}`, 'Price']}
+                />
+                <ReferenceLine y={Number(post.price)} stroke={catColor} strokeDasharray="4 2" label={{ value: 'This', fill: catColor, fontSize: 10, position: 'right' }} />
+                <Line type="monotone" dataKey="price" stroke={catColor} strokeWidth={2} dot={{ fill: catColor, r: 3 }} activeDot={{ r: 5 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
 
         {/* ACTION BUTTONS */}
         <div
