@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-import { getPosts, likePost, votePost } from '../services/api';
+import { getPosts, likePost, votePost, getDashboard, getAlerts } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import SkeletonCard from '../components/SkeletonCard';
 import BottomSheet from '../components/BottomSheet';
@@ -19,7 +19,14 @@ const categoryColors = {
   Healthcare: '#00b0ff',
 };
 
-const allStates = ['All States', 'Lagos', 'Oyo', 'Abuja', 'Kano', 'Rivers'];
+const allStates = [
+  'All States',
+  'Abia','Adamawa','Akwa Ibom','Anambra','Bauchi','Bayelsa','Benue','Borno',
+  'Cross River','Delta','Ebonyi','Edo','Ekiti','Enugu','FCT - Abuja','Gombe',
+  'Imo','Jigawa','Kaduna','Kano','Katsina','Kebbi','Kogi','Kwara','Lagos',
+  'Nasarawa','Niger','Ogun','Ondo','Osun','Oyo','Plateau','Rivers','Sokoto',
+  'Taraba','Yobe','Zamfara',
+];
 const allCategories = ['All Categories', 'Food & Groceries', 'Vegetables', 'Meat & Poultry', 'Fuel & Energy', 'Healthcare'];
 const suggestions = ['Garri', 'Rice', 'Tomatoes', 'Petrol', 'Chicken', 'Paracetamol'];
 
@@ -59,6 +66,8 @@ function Feed() {
   const [liked, setLiked] = useState({});     // { [postId]: true/false }
   const [votes, setVotes] = useState({});     // { [postId]: 'confirm'|'deny'|null }
   const [posts, setPosts] = useState([]);
+  const [dashboard, setDashboard] = useState({ total_posts: 0, total_users: 0, top_products: [] });
+  const [topAlert, setTopAlert] = useState(null);
   const [search, setSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filterState, setFilterState] = useState('All States');
@@ -84,6 +93,19 @@ function Feed() {
     }
   }, [filterState, filterCategory, search, sortBy, showToast]);
 
+  // Fetch dashboard stats + alerts once on mount
+  useEffect(() => {
+    getDashboard()
+      .then((r) => setDashboard(r.data ?? {}))
+      .catch(() => {});
+    getAlerts({ per_page: 1 })
+      .then((r) => {
+        const items = r.data?.data ?? r.data ?? [];
+        setTopAlert(Array.isArray(items) ? items[0] : null);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     setLoading(true);
     fetchPosts().finally(() => setLoading(false));
@@ -91,7 +113,10 @@ function Feed() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchPosts();
+    await Promise.all([
+      fetchPosts(),
+      getDashboard().then((r) => setDashboard(r.data ?? {})).catch(() => {}),
+    ]);
     showToast('Feed refreshed! 🔄', 'success');
     setRefreshing(false);
   };
@@ -196,13 +221,13 @@ function Feed() {
           >+ New Post</HapticButton>
         </div>
 
-        {/* STATS ROW */}
+        {/* STATS ROW — real numbers from /api/dashboard */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '20px' }}>
           {[
-            { label: 'Total Reports', value: '50,241', color: theme.accent },
+            { label: 'Total Reports', value: (dashboard.total_posts ?? 0).toLocaleString(), color: theme.accent },
             { label: 'States Active', value: '36', color: '#00b0ff' },
-            { label: 'Markets Today', value: '1,204', color: '#ffd600' },
-            { label: 'Price Alerts', value: '14', color: '#ff4d6d' },
+            { label: 'Users',         value: (dashboard.total_users ?? 0).toLocaleString(), color: '#ffd600' },
+            { label: 'Price Alerts',  value: (dashboard.alerts?.length ?? 0).toString(), color: '#ff4d6d' },
           ].map((s) => (
             <div key={s.label} style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '12px', padding: '14px 16px', borderTop: `2px solid ${s.color}` }}>
               <div style={{ fontSize: '18px', fontWeight: 800, color: s.color }}>{s.value}</div>
@@ -211,14 +236,20 @@ function Feed() {
           ))}
         </div>
 
-        {/* PRICE ALERT BANNER */}
-        <div style={{ background: 'rgba(255,77,109,0.08)', border: '1px solid rgba(255,77,109,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '20px' }}>🚨</span>
-          <div style={{ flex: 1 }}>
-            <p style={{ fontSize: '13px', fontWeight: 700, color: '#ff4d6d', margin: '0 0 2px' }}>Price Spike Alert — Lagos</p>
-            <p style={{ fontSize: '12px', color: theme.textMuted, margin: 0 }}>Rice (50kg) has gone up by 40% in the last 7 days</p>
+        {/* PRICE ALERT BANNER — first alert from /api/alerts */}
+        {topAlert && (
+          <div style={{ background: 'rgba(255,77,109,0.08)', border: '1px solid rgba(255,77,109,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '20px' }}>🚨</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: '13px', fontWeight: 700, color: '#ff4d6d', margin: '0 0 2px' }}>
+                Price Alert — {topAlert.state || 'Nigeria'}
+              </p>
+              <p style={{ fontSize: '12px', color: theme.textMuted, margin: 0 }}>
+                {topAlert.message || `${topAlert.product} price has changed significantly`}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* GUEST BANNER */}
         {!isLoggedIn && (
@@ -303,27 +334,31 @@ function Feed() {
           </div>
         )}
 
-        {/* TRENDING */}
-        <div style={{ marginBottom: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-            <span style={{ fontSize: '16px' }}>🔥</span>
-            <h3 style={{ fontSize: '13px', fontWeight: 700, color: theme.text, margin: 0 }}>Trending This Week</h3>
+        {/* TRENDING — top_products from /api/dashboard */}
+        {(dashboard.top_products ?? []).length > 0 && (
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '16px' }}>🔥</span>
+              <h3 style={{ fontSize: '13px', fontWeight: 700, color: theme.text, margin: 0 }}>Trending This Week</h3>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '8px' }}>
+              {(dashboard.top_products ?? []).map((item, idx) => {
+                const chipColors = ['#ff4d6d', '#00e676', '#ffd600', '#69f0ae', '#ff6e40'];
+                const color = chipColors[idx % chipColors.length];
+                return (
+                  <div
+                    key={item.product}
+                    onClick={() => setSearch(item.product)}
+                    style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '12px', padding: '12px 16px', cursor: 'pointer', flexShrink: 0, borderTop: `2px solid ${color}`, minWidth: '130px' }}
+                  >
+                    <p style={{ fontSize: '13px', fontWeight: 700, color: theme.text, margin: '0 0 4px', whiteSpace: 'nowrap' }}>{item.product}</p>
+                    <p style={{ fontSize: '11px', color, margin: 0, fontWeight: 600 }}>{item.report_count} reports</p>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '8px' }}>
-            {[
-              { name: 'Rice (50kg)', reports: 124, color: '#ff4d6d' },
-              { name: 'Garri (1kg)', reports: 98, color: '#00e676' },
-              { name: 'Petrol (litre)', reports: 87, color: '#ffd600' },
-              { name: 'Tomatoes', reports: 76, color: '#69f0ae' },
-              { name: 'Chicken (1kg)', reports: 65, color: '#ff6e40' },
-            ].map((item) => (
-              <div key={item.name} onClick={() => setSearch(item.name)} style={{ background: theme.card, border: `1px solid ${theme.cardBorder}`, borderRadius: '12px', padding: '12px 16px', cursor: 'pointer', flexShrink: 0, borderTop: `2px solid ${item.color}`, minWidth: '130px' }}>
-                <p style={{ fontSize: '13px', fontWeight: 700, color: theme.text, margin: '0 0 4px', whiteSpace: 'nowrap' }}>{item.name}</p>
-                <p style={{ fontSize: '11px', color: item.color, margin: 0, fontWeight: 600 }}>{item.reports} reports</p>
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
 
         {/* RESULTS COUNT */}
         <p style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '16px' }}>

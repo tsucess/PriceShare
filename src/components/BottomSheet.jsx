@@ -1,44 +1,65 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
+import { getComments, addComment } from "../services/api";
 
 function BottomSheet({ isOpen, onClose, post, onAddComment }) {
   const theme = useTheme();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const [commentInput, setCommentInput] = useState("");
   const [comments, setComments] = useState([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [visible, setVisible] = useState(false);
   const justOpenedRef = useRef(false);
 
   useEffect(() => {
     if (isOpen) {
-      // Mark as just opened — ignore any touch/click events for 400ms
       justOpenedRef.current = true;
-      setTimeout(() => {
-        justOpenedRef.current = false;
-      }, 400);
+      setTimeout(() => { justOpenedRef.current = false; }, 400);
       setTimeout(() => setVisible(true), 10);
       document.body.style.overflow = "hidden";
     } else {
       setVisible(false);
       document.body.style.overflow = "";
     }
-    return () => {
-      document.body.style.overflow = "";
-    };
+    return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
 
+  // Load real comments from API whenever a post is opened
   useEffect(() => {
-    if (post) setComments(post.comments || []);
-  }, [post]);
+    if (!post?.id) { setComments([]); return; }
+    setLoadingComments(true);
+    getComments(post.id)
+      .then((res) => {
+        const data = res.data?.data ?? res.data ?? [];
+        setComments(Array.isArray(data) ? data : data.data ?? []);
+      })
+      .catch(() => setComments([]))
+      .finally(() => setLoadingComments(false));
+  }, [post?.id]);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!post || !commentInput.trim()) return;
-    const newComments = [...comments, commentInput];
-    setComments(newComments);
-    onAddComment?.(post.id, commentInput);
-    setCommentInput("");
-    showToast("Comment added! 💬", "success");
+    if (!user) { showToast("Sign in to comment", "warning"); return; }
+    setSubmitting(true);
+    try {
+      await addComment(post.id, commentInput.trim());
+      // Append optimistic comment with real user info
+      setComments((prev) => [
+        ...prev,
+        { body: commentInput.trim(), user: { name: user.name, avatar_url: user.avatar_url }, created_at: new Date().toISOString() },
+      ]);
+      onAddComment?.(post.id, commentInput.trim());
+      setCommentInput("");
+      showToast("Comment added! 💬", "success");
+    } catch {
+      showToast("Could not post comment. Try again.", "error");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleClose = () => {
@@ -171,80 +192,47 @@ function BottomSheet({ isOpen, onClose, post, onAddComment }) {
             gap: "12px",
           }}
         >
-          {comments.length === 0 ? (
+          {loadingComments ? (
+            <div style={{ textAlign: "center", padding: "32px 0", color: theme.textMuted, fontSize: "13px" }}>
+              ⏳ Loading comments...
+            </div>
+          ) : comments.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px 0" }}>
               <div style={{ fontSize: "48px", marginBottom: "12px" }}>💬</div>
-              <p
-                style={{
-                  fontWeight: 600,
-                  color: theme.textMuted,
-                  marginBottom: "6px",
-                }}
-              >
-                No comments yet
-              </p>
-              <p style={{ fontSize: "13px", color: theme.textDim }}>
-                Be the first to say something!
-              </p>
+              <p style={{ fontWeight: 600, color: theme.textMuted, marginBottom: "6px" }}>No comments yet</p>
+              <p style={{ fontSize: "13px", color: theme.textDim }}>Be the first to say something!</p>
             </div>
           ) : (
-            comments.map((c, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  alignItems: "flex-start",
-                }}
-              >
-                <div
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    borderRadius: "50%",
-                    flexShrink: 0,
-                    background: "linear-gradient(135deg, #00e676, #00b0ff)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "11px",
-                    fontWeight: 800,
-                    color: "#0a0a0f",
-                  }}
-                >
-                  {typeof c === "string" ? c.charAt(0).toUpperCase() : "U"}
+            comments.map((c, i) => {
+              const name = c.user?.name || "Anonymous";
+              const initials = name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+              const avatarUrl = c.user?.avatar_url;
+              return (
+                <div key={c.id ?? i} style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+                  {/* Avatar */}
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={name} style={{ width: "32px", height: "32px", borderRadius: "50%", flexShrink: 0, objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: "32px", height: "32px", borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg, #00e676, #00b0ff)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 800, color: "#0a0a0f" }}>
+                      {initials}
+                    </div>
+                  )}
+                  <div style={{ flex: 1, background: theme.pill, borderRadius: "0 14px 14px 14px", padding: "10px 14px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                      <p style={{ fontSize: "11px", fontWeight: 700, color: theme.accent, margin: 0 }}>{name}</p>
+                      {c.created_at && (
+                        <span style={{ fontSize: "10px", color: theme.textMuted }}>
+                          {new Date(c.created_at).toLocaleDateString("en-NG", { day: "numeric", month: "short" })}
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: "13px", color: theme.text, margin: 0, lineHeight: 1.5 }}>
+                      {c.body ?? c.text ?? c}
+                    </p>
+                  </div>
                 </div>
-                <div
-                  style={{
-                    flex: 1,
-                    background: theme.pill,
-                    borderRadius: "0 14px 14px 14px",
-                    padding: "10px 14px",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      color: theme.accent,
-                      margin: "0 0 4px",
-                    }}
-                  >
-                    Community Member
-                  </p>
-                  <p
-                    style={{
-                      fontSize: "13px",
-                      color: theme.text,
-                      margin: 0,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {typeof c === "string" ? c : c.text}
-                  </p>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 
@@ -259,23 +247,13 @@ function BottomSheet({ isOpen, onClose, post, onAddComment }) {
             background: theme.card,
           }}
         >
-          <div
-            style={{
-              width: "34px",
-              height: "34px",
-              borderRadius: "50%",
-              flexShrink: 0,
-              background: "linear-gradient(135deg, #00e676, #00b0ff)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "11px",
-              fontWeight: 800,
-              color: "#0a0a0f",
-            }}
-          >
-            CO
-          </div>
+          {user?.avatar_url ? (
+            <img src={user.avatar_url} alt="me" style={{ width: "34px", height: "34px", borderRadius: "50%", flexShrink: 0, objectFit: "cover" }} />
+          ) : (
+            <div style={{ width: "34px", height: "34px", borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg, #00e676, #00b0ff)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "11px", fontWeight: 800, color: "#0a0a0f" }}>
+              {user ? (user.name || "U").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() : "?"}
+            </div>
+          )}
           <input
             type="text"
             placeholder="Add a comment..."
@@ -296,25 +274,17 @@ function BottomSheet({ isOpen, onClose, post, onAddComment }) {
           />
           <button
             onClick={handleAdd}
+            disabled={submitting || !commentInput.trim()}
             style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "50%",
-              flexShrink: 0,
-              background: commentInput.trim()
-                ? "linear-gradient(135deg, #00e676, #00c853)"
-                : theme.pill,
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "16px",
-              transition: "all 0.2s",
-              color: commentInput.trim() ? "#0a0a0f" : theme.textMuted,
+              width: "40px", height: "40px", borderRadius: "50%", flexShrink: 0,
+              background: commentInput.trim() && !submitting ? "linear-gradient(135deg, #00e676, #00c853)" : theme.pill,
+              border: "none", cursor: submitting ? "not-allowed" : "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "16px", transition: "all 0.2s",
+              color: commentInput.trim() && !submitting ? "#0a0a0f" : theme.textMuted,
             }}
           >
-            →
+            {submitting ? "⏳" : "→"}
           </button>
         </div>
       </div>

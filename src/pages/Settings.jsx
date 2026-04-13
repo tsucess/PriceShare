@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-import { deleteMe, authChangePassword } from '../services/api';
+import { deleteMe, authChangePassword, updateSettings, getUserPosts } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import HapticButton from '../components/HapticButton';
 import { SkeletonRow, SkeletonBlock } from '../components/SkeletonCard';
@@ -22,10 +22,11 @@ function Settings() {
   const navigate = useNavigate();
   const theme = useTheme();
   const { showToast } = useToast();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const isMobile = useIsMobile();
 
   const [loading, setLoading] = useState(true);
+  const [postsCount, setPostsCount] = useState(0);
   const [signingOut, setSigningOut] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [notifications, setNotifications] = useState({
@@ -36,17 +37,32 @@ function Settings() {
   });
   const [twoFA, setTwoFA] = useState(false);
   const [language, setLanguage] = useState('English');
-  const [region, setRegion] = useState('Lagos');
+  const [region, setRegion] = useState(user?.state || 'Lagos');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteInput, setDeleteInput] = useState('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [pwForm, setPwForm] = useState({ current_password: '', password: '', password_confirmation: '' });
   const [changingPassword, setChangingPassword] = useState(false);
 
+  // Load real post count for the profile stats card
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 1200);
-    return () => clearTimeout(t);
-  }, []);
+    if (!user?.id) { setLoading(false); return; }
+    getUserPosts(user.id)
+      .then((r) => {
+        const data = r.data?.data ?? r.data ?? [];
+        setPostsCount(Array.isArray(data) ? data.length : (data.total ?? 0));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user]);
+
+  // Persist notification / privacy setting changes to the backend
+  const persistSettings = (updatedNotif, updatedPrivacy) => {
+    updateSettings({
+      notification_settings: updatedNotif,
+      privacy_settings: updatedPrivacy,
+    }).catch(() => {}); // silent — toggles already updated optimistically
+  };
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -199,31 +215,45 @@ function Settings() {
           </div>
         ) : (
           <>
-            {/* PROFILE — always full width */}
+            {/* PROFILE — real user data from AuthContext */}
             <Section title="Profile">
               <div style={{
                 padding: '18px', display: 'flex', alignItems: 'center',
                 gap: '16px', borderBottom: `1px solid ${theme.cardBorder}`,
                 flexWrap: 'wrap',
               }}>
-                <div style={{
-                  width: '60px', height: '60px', borderRadius: '50%', flexShrink: 0,
-                  background: 'linear-gradient(135deg, #00e676, #00b0ff)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '18px', fontWeight: 800, color: '#0a0a0f',
-                }}>CO</div>
+                {/* Avatar: image URL or initials */}
+                {user?.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt="avatar"
+                    style={{ width: '60px', height: '60px', borderRadius: '50%', flexShrink: 0, objectFit: 'cover', border: `2px solid ${theme.accent}` }}
+                  />
+                ) : (
+                  <div style={{
+                    width: '60px', height: '60px', borderRadius: '50%', flexShrink: 0,
+                    background: 'linear-gradient(135deg, #00e676, #00b0ff)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '18px', fontWeight: 800, color: '#0a0a0f',
+                  }}>
+                    {(user?.name || 'U').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                )}
                 <div style={{ flex: 1, minWidth: '120px' }}>
-                  <div style={{ fontSize: '16px', fontWeight: 700, color: theme.text }}>Chidi Okeke</div>
-                  <div style={{ fontSize: '12px', color: theme.textMuted, marginTop: '2px' }}>chidi@example.com</div>
-                  <div style={{ fontSize: '12px', color: theme.textMuted }}>📍 Lagos, Nigeria</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: theme.text }}>{user?.name || 'Your Name'}</div>
+                  <div style={{ fontSize: '12px', color: theme.textMuted, marginTop: '2px' }}>{user?.email || user?.phone || ''}</div>
+                  {user?.state && <div style={{ fontSize: '12px', color: theme.textMuted }}>📍 {user.state}, Nigeria</div>}
                 </div>
                 <HapticButton
                   onClick={() => navigate('/profile')}
                   style={{ padding: '8px 16px', borderRadius: '8px', fontSize: '12px', fontWeight: 700, border: `1px solid ${theme.accent}`, background: 'transparent', color: theme.accent }}
                 >Edit</HapticButton>
               </div>
-              <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                {[{ label: 'Posts', value: '3' }, { label: 'Likes', value: '73' }, { label: 'Comments', value: '16' }].map((s) => (
+              <div style={{ padding: '14px 18px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                {[
+                  { label: 'Posts', value: postsCount },
+                  { label: 'Member Since', value: user?.created_at ? new Date(user.created_at).getFullYear() : '—' },
+                ].map((s) => (
                   <div key={s.label} style={{ textAlign: 'center', background: theme.pill, borderRadius: '10px', padding: '12px 8px' }}>
                     <div style={{ fontSize: '18px', fontWeight: 800, color: theme.accent }}>{s.value}</div>
                     <div style={{ fontSize: '11px', color: theme.textMuted, marginTop: '3px' }}>{s.label}</div>
@@ -260,16 +290,16 @@ function Settings() {
                 {/* NOTIFICATIONS */}
                 <Section title="Notifications">
                   <Row icon="🔔" label="Price Alerts" desc="Get notified when prices spike in your area"
-                    right={<Toggle value={notifications.priceAlerts} onChange={(v) => { setNotifications({ ...notifications, priceAlerts: v }); showToast(v ? 'Price alerts enabled 🔔' : 'Price alerts disabled', v ? 'success' : 'info'); }} />}
+                    right={<Toggle value={notifications.priceAlerts} onChange={(v) => { const n = { ...notifications, priceAlerts: v }; setNotifications(n); persistSettings(n, privacy); showToast(v ? 'Price alerts enabled 🔔' : 'Price alerts disabled', v ? 'success' : 'info'); }} />}
                   />
                   <Row icon="💬" label="New Comments" desc="When someone comments on your post"
-                    right={<Toggle value={notifications.newComments} onChange={(v) => { setNotifications({ ...notifications, newComments: v }); showToast(v ? 'Comment notifications on 💬' : 'Comment notifications off', v ? 'success' : 'info'); }} />}
+                    right={<Toggle value={notifications.newComments} onChange={(v) => { const n = { ...notifications, newComments: v }; setNotifications(n); persistSettings(n, privacy); showToast(v ? 'Comment notifications on 💬' : 'Comment notifications off', v ? 'success' : 'info'); }} />}
                   />
                   <Row icon="📊" label="Weekly Report" desc="Summary of price trends in your state"
-                    right={<Toggle value={notifications.weeklyReport} onChange={(v) => { setNotifications({ ...notifications, weeklyReport: v }); showToast(v ? 'Weekly report enabled 📊' : 'Weekly report disabled', v ? 'success' : 'info'); }} />}
+                    right={<Toggle value={notifications.weeklyReport} onChange={(v) => { const n = { ...notifications, weeklyReport: v }; setNotifications(n); persistSettings(n, privacy); showToast(v ? 'Weekly report enabled 📊' : 'Weekly report disabled', v ? 'success' : 'info'); }} />}
                   />
                   <Row icon="🏛️" label="Government Updates" desc="Updates on reported price gouging cases"
-                    right={<Toggle value={notifications.govUpdates} onChange={(v) => { setNotifications({ ...notifications, govUpdates: v }); showToast(v ? 'Government updates on 🏛️' : 'Government updates off', v ? 'success' : 'info'); }} />}
+                    right={<Toggle value={notifications.govUpdates} onChange={(v) => { const n = { ...notifications, govUpdates: v }; setNotifications(n); persistSettings(n, privacy); showToast(v ? 'Government updates on 🏛️' : 'Government updates off', v ? 'success' : 'info'); }} />}
                   />
                 </Section>
 
@@ -297,13 +327,13 @@ function Settings() {
                 {/* PRIVACY */}
                 <Section title="Privacy & Security">
                   <Row icon="📍" label="Show My Location" desc="Others can see which city your reports are from"
-                    right={<Toggle value={privacy.showLocation} onChange={(v) => { setPrivacy({ ...privacy, showLocation: v }); showToast(v ? 'Location visible 📍' : 'Location hidden', v ? 'success' : 'info'); }} />}
+                    right={<Toggle value={privacy.showLocation} onChange={(v) => { const p = { ...privacy, showLocation: v }; setPrivacy(p); persistSettings(notifications, p); showToast(v ? 'Location visible 📍' : 'Location hidden', v ? 'success' : 'info'); }} />}
                   />
                   <Row icon="👤" label="Public Profile" desc="Anyone can view your submitted posts"
-                    right={<Toggle value={privacy.showProfile} onChange={(v) => { setPrivacy({ ...privacy, showProfile: v }); showToast(v ? 'Profile is now public 👤' : 'Profile is now private', v ? 'success' : 'info'); }} />}
+                    right={<Toggle value={privacy.showProfile} onChange={(v) => { const p = { ...privacy, showProfile: v }; setPrivacy(p); persistSettings(notifications, p); showToast(v ? 'Profile is now public 👤' : 'Profile is now private', v ? 'success' : 'info'); }} />}
                   />
                   <Row icon="✉️" label="Allow Direct Messages" desc="Let other users message you"
-                    right={<Toggle value={privacy.allowDM} onChange={(v) => { setPrivacy({ ...privacy, allowDM: v }); showToast(v ? 'Direct messages enabled ✉️' : 'Direct messages disabled', v ? 'success' : 'info'); }} />}
+                    right={<Toggle value={privacy.allowDM} onChange={(v) => { const p = { ...privacy, allowDM: v }; setPrivacy(p); persistSettings(notifications, p); showToast(v ? 'Direct messages enabled ✉️' : 'Direct messages disabled', v ? 'success' : 'info'); }} />}
                   />
                   <Row icon="🔒" label="Change Password" desc="Update your account password"
                     right={<HapticButton onClick={() => setShowPasswordModal(true)} style={ghostBtn}>Update</HapticButton>}

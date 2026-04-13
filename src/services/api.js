@@ -49,8 +49,8 @@ export const uploadImage = (file) => {
 };
 
 // ── Dashboard / Alerts ─────────────────────────────────────────────────────
-export const getDashboard = () => api.get('/dashboard');
-export const getAlerts    = () => api.get('/alerts');
+export const getDashboard = (params) => api.get('/dashboard', { params });
+export const getAlerts    = (params) => api.get('/alerts', { params });
 
 // ── Public User ────────────────────────────────────────────────────────────
 export const getUser      = (id) => api.get(`/users/${id}`);
