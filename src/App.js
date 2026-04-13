@@ -31,7 +31,7 @@ function AppContent({ showOnboarding, setShowOnboarding }) {
       <ScrollToTop />
       {showOnboarding && (
         <OnboardingSlides onDone={() => {
-          localStorage.setItem('pw-onboarded', 'true');
+          localStorage.setItem(process.env.REACT_APP_ONBOARD_KEY || 'pw-onboarded', 'true');
           setShowOnboarding(false);
         }} />
       )}
@@ -54,7 +54,7 @@ function AppContent({ showOnboarding, setShowOnboarding }) {
 }
 
 function App() {
-  const hasSeenOnboarding = localStorage.getItem('pw-onboarded') === 'true';
+  const hasSeenOnboarding = localStorage.getItem(process.env.REACT_APP_ONBOARD_KEY || 'pw-onboarded') === 'true';
 
   const [showSplash, setShowSplash]         = useState(!hasSeenOnboarding);
   const [showOnboarding, setShowOnboarding] = useState(!hasSeenOnboarding);

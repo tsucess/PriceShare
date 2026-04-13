@@ -95,7 +95,7 @@ function LoginPage() {
       {/* NAV */}
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 20px', background: theme.sidebar, borderBottom: `1px solid ${theme.sidebarBorder}`, transition: 'all 0.3s' }}>
         <div onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
-          <div style={{ fontSize: '11px', letterSpacing: '4px', color: theme.accent, fontWeight: 800, textTransform: 'uppercase' }}>PriceWatch</div>
+          <div style={{ fontSize: '11px', letterSpacing: '4px', color: theme.accent, fontWeight: 800, textTransform: 'uppercase' }}>PriceShare</div>
           <div style={{ fontSize: '9px', color: theme.textMuted, letterSpacing: '2px', textTransform: 'uppercase' }}>Nigeria</div>
         </div>
         <HapticButton

@@ -58,7 +58,7 @@ function LandingPage() {
               textTransform: "uppercase",
             }}
           >
-            PriceWatch
+            PriceShare
           </div>
           <div
             style={{
@@ -168,7 +168,7 @@ function LandingPage() {
             margin: "0 auto 32px",
           }}
         >
-          PriceWatch is a community-driven platform where Nigerians share real
+          PriceShare is a community-driven platform where Nigerians share real
           market prices so everyone can shop smarter and fight price gouging.
         </p>
 
@@ -509,7 +509,7 @@ function LandingPage() {
             maxWidth: "320px",
           }}
         >
-          Join PriceWatch Free 🇳🇬
+          Join PriceShare Free 🇳🇬
         </HapticButton>
       </section>
 
@@ -525,7 +525,7 @@ function LandingPage() {
           transition: "all 0.3s",
         }}
       >
-        © 2026 PriceWatch Nigeria. Making markets fair, one post at a time. 🇳🇬
+        © 2026 PriceShare Nigeria. Making markets fair, one post at a time. 🇳🇬
       </footer>
     </div>
   );

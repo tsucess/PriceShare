@@ -1,14 +1,20 @@
 import axios from 'axios';
 
+// ── Environment variables ──────────────────────────────────────────────────
+const API_URL     = process.env.REACT_APP_API_URL     || 'http://localhost:8000/api';
+const TOKEN_KEY   = process.env.REACT_APP_TOKEN_KEY   || 'ps-token';
+const API_TIMEOUT = Number(process.env.REACT_APP_API_TIMEOUT) || 10000;
+
 // ── Axios instance ─────────────────────────────────────────────────────────
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000/api',
+  baseURL: API_URL,
+  timeout: API_TIMEOUT,
   headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
 });
 
-// Attach Sanctum token on every request
+// Attach Sanctum Bearer token on every request
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('ps-token');
+  const token = localStorage.getItem(TOKEN_KEY);
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });

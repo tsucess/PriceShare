@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTheme } from "../context/ThemeContext";
+import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 import {
   LayoutDashboard,
   Rss,
@@ -17,11 +19,65 @@ const navItems = [
   { icon: Settings, label: "Settings", path: "/settings" },
 ];
 
+const GRADIENT_AVATARS = [
+  "linear-gradient(135deg, #00e676, #00b0ff)",
+  "linear-gradient(135deg, #ff4d6d, #ff9a3c)",
+  "linear-gradient(135deg, #a855f7, #ec4899)",
+  "linear-gradient(135deg, #ffd600, #ff6e40)",
+  "linear-gradient(135deg, #00b0ff, #0040ff)",
+  "linear-gradient(135deg, #00e676, #ffd600)",
+];
+
 function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
+  const { user } = useAuth();
+  const { t } = useLanguage();
   const [bouncing, setBouncing] = useState(null);
+
+  const initials = (user?.name || "U")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  const avatarGradient = GRADIENT_AVATARS[0];
+
+  const AvatarCircle = ({ size = 36, fontSize = 11 }) =>
+    user?.avatar_url ? (
+      <img
+        src={user.avatar_url}
+        alt="avatar"
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          objectFit: "cover",
+          flexShrink: 0,
+          display: "block",
+        }}
+      />
+    ) : (
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          background: avatarGradient,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize,
+          fontWeight: 800,
+          color: "#0a0a0f",
+          flexShrink: 0,
+        }}
+      >
+        {initials}
+      </div>
+    );
 
   const handleNavClick = (path) => {
     setBouncing(path);
@@ -72,7 +128,7 @@ function Sidebar() {
               marginBottom: "4px",
             }}
           >
-            PriceWatch
+            PriceShare
           </div>
           <div
             style={{
@@ -120,7 +176,7 @@ function Sidebar() {
                 }}
               >
                 <Icon size={17} strokeWidth={active ? 2.5 : 1.8} />
-                {item.label}
+                {t(item.label)}
               </div>
             );
           })}
@@ -128,6 +184,7 @@ function Sidebar() {
 
         {/* PROFILE */}
         <div
+          onClick={() => navigate("/profile")}
           style={{
             padding: "14px",
             background: theme.profileBg,
@@ -135,33 +192,25 @@ function Sidebar() {
             display: "flex",
             alignItems: "center",
             gap: "10px",
+            cursor: "pointer",
           }}
         >
-          <div
-            style={{
-              width: "36px",
-              height: "36px",
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, #00e676, #00b0ff)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "11px",
-              fontWeight: 800,
-              color: "#0a0a0f",
-              flexShrink: 0,
-            }}
-          >
-            CO
-          </div>
-          <div>
+          <AvatarCircle size={36} fontSize={11} />
+          <div style={{ overflow: "hidden" }}>
             <div
-              style={{ fontSize: "12px", fontWeight: 700, color: theme.text }}
+              style={{
+                fontSize: "12px",
+                fontWeight: 700,
+                color: theme.text,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
             >
-              Chidi Okeke
+              {user?.name || "Your Name"}
             </div>
             <div style={{ fontSize: "11px", color: theme.textMuted }}>
-              Lagos, NG
+              {user?.state ? `${user.state}, NG` : "Nigeria"}
             </div>
           </div>
         </div>
@@ -197,7 +246,7 @@ function Sidebar() {
               textTransform: "uppercase",
             }}
           >
-            PriceWatch
+            PriceShare
           </div>
           <div
             style={{
@@ -210,23 +259,8 @@ function Sidebar() {
             Nigeria
           </div>
         </div>
-        <div
-          onClick={() => navigate("/settings")}
-          style={{
-            width: "36px",
-            height: "36px",
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #00e676, #00b0ff)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "11px",
-            fontWeight: 800,
-            color: "#0a0a0f",
-            cursor: "pointer",
-          }}
-        >
-          CO
+        <div onClick={() => navigate("/profile")} style={{ cursor: "pointer" }}>
+          <AvatarCircle size={36} fontSize={11} />
         </div>
       </div>
 
@@ -328,7 +362,7 @@ function Sidebar() {
                     transition: "color 0.2s",
                   }}
                 >
-                  {item.label}
+                  {t(item.label)}
                 </span>
               </div>
             );

@@ -173,7 +173,7 @@ function NotFoundPage() {
             opacity: 0.6,
           }}
         >
-          PriceWatch Nigeria 🇳🇬 — Helping Nigerians shop smarter
+          PriceShare Nigeria 🇳🇬 — Helping Nigerians shop smarter
         </p>
       </div>
     </div>

@@ -65,6 +65,53 @@ const GRADIENT_AVATARS = [
   "linear-gradient(135deg, #00e676, #ffd600)",
 ];
 
+function Field({ label, theme, children }) {
+  const labelStyle = {
+    fontSize: "11px",
+    fontWeight: 700,
+    color: theme.textMuted,
+    letterSpacing: "1px",
+    textTransform: "uppercase",
+    marginBottom: "6px",
+    display: "block",
+  };
+  return (
+    <div style={{ marginBottom: "18px" }}>
+      <label style={labelStyle}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function ReadRow({ label, value, icon, theme }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "13px 0",
+        borderBottom: `1px solid ${theme.cardBorder}`,
+      }}
+    >
+      <span style={{ fontSize: "13px", color: theme.textMuted }}>
+        {icon} {label}
+      </span>
+      <span
+        style={{
+          fontSize: "13px",
+          fontWeight: 600,
+          color: theme.text,
+          textAlign: "right",
+          maxWidth: "55%",
+        }}
+      >
+        {value || "—"}
+      </span>
+    </div>
+  );
+}
+
 function ProfilePage() {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -284,47 +331,6 @@ function ProfilePage() {
     transition: "border 0.2s",
   };
   const selectStyle = { ...inputStyle, cursor: "pointer" };
-  const labelStyle = {
-    fontSize: "11px",
-    fontWeight: 700,
-    color: theme.textMuted,
-    letterSpacing: "1px",
-    textTransform: "uppercase",
-    marginBottom: "6px",
-    display: "block",
-  };
-  const Field = ({ label, children }) => (
-    <div style={{ marginBottom: "18px" }}>
-      <label style={labelStyle}>{label}</label>
-      {children}
-    </div>
-  );
-  const ReadRow = ({ label, value, icon }) => (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "13px 0",
-        borderBottom: `1px solid ${theme.cardBorder}`,
-      }}
-    >
-      <span style={{ fontSize: "13px", color: theme.textMuted }}>
-        {icon} {label}
-      </span>
-      <span
-        style={{
-          fontSize: "13px",
-          fontWeight: 600,
-          color: theme.text,
-          textAlign: "right",
-          maxWidth: "55%",
-        }}
-      >
-        {value || "—"}
-      </span>
-    </div>
-  );
 
   return (
     <div
@@ -605,7 +611,7 @@ function ProfilePage() {
                 gap: "0 24px",
               }}
             >
-              <Field label="Full Name *">
+              <Field label="Full Name *" theme={theme}>
                 <input
                   style={inputStyle}
                   value={form.fullName}
@@ -615,37 +621,42 @@ function ProfilePage() {
                   placeholder="Your full name"
                 />
               </Field>
-              <Field label="Username *">
+              <Field label="Username *" theme={theme}>
                 <div style={{ position: "relative" }}>
                   <span
                     style={{
                       position: "absolute",
-                      left: "12px",
+                      left: "14px",
                       top: "50%",
                       transform: "translateY(-50%)",
                       color: theme.accent,
                       fontWeight: 700,
                       fontSize: "14px",
+                      pointerEvents: "none",
+                      userSelect: "none",
                     }}
                   >
                     @
                   </span>
                   <input
-                    style={{ ...inputStyle, paddingLeft: "28px" }}
+                    style={{ ...inputStyle, paddingLeft: "32px" }}
                     value={form.username}
                     onChange={(e) =>
                       setForm({
                         ...form,
                         username: e.target.value
-                          .replace(/\s/g, "")
+                          .replace(/[^a-zA-Z0-9_]/g, "")
                           .toLowerCase(),
                       })
                     }
                     placeholder="your_handle"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                   />
                 </div>
               </Field>
-              <Field label="Phone Number">
+              <Field label="Phone Number" theme={theme}>
                 <input
                   style={inputStyle}
                   value={form.phone}
@@ -654,18 +665,19 @@ function ProfilePage() {
                   type="tel"
                 />
               </Field>
-              <Field label="Home State">
+              <Field label="Home State" theme={theme}>
                 <select
                   style={selectStyle}
                   value={form.state}
                   onChange={(e) => setForm({ ...form, state: e.target.value })}
                 >
+                  <option value="">Select state</option>
                   {STATES.map((s) => (
-                    <option key={s}>{s}</option>
+                    <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
               </Field>
-              <Field label="Occupation">
+              <Field label="Occupation" theme={theme}>
                 <select
                   style={selectStyle}
                   value={form.occupation}
@@ -673,31 +685,34 @@ function ProfilePage() {
                     setForm({ ...form, occupation: e.target.value })
                   }
                 >
+                  <option value="">Select occupation</option>
                   {OCCUPATIONS.map((o) => (
-                    <option key={o}>{o}</option>
+                    <option key={o} value={o}>{o}</option>
                   ))}
                 </select>
               </Field>
-              <Field label="Gender">
+              <Field label="Gender" theme={theme}>
                 <select
                   style={selectStyle}
                   value={form.gender}
                   onChange={(e) => setForm({ ...form, gender: e.target.value })}
                 >
+                  <option value="">Select gender</option>
                   {GENDERS.map((g) => (
-                    <option key={g}>{g}</option>
+                    <option key={g} value={g}>{g}</option>
                   ))}
                 </select>
               </Field>
-              <Field label="Date of Birth">
+              <Field label="Date of Birth" theme={theme}>
                 <input
                   style={inputStyle}
                   type="date"
-                  value={form.dob}
+                  value={form.dob ? form.dob.split("T")[0] : ""}
+                  max={new Date().toISOString().split("T")[0]}
                   onChange={(e) => setForm({ ...form, dob: e.target.value })}
                 />
               </Field>
-              <Field label="Profile Visibility">
+              <Field label="Profile Visibility" theme={theme}>
                 <div style={{ display: "flex", gap: "10px" }}>
                   {["public", "private"].map((v) => (
                     <button
@@ -740,7 +755,7 @@ function ProfilePage() {
                   gridColumn: window.innerWidth > 768 ? "1 / -1" : undefined,
                 }}
               >
-                <Field label="Bio">
+                <Field label="Bio" theme={theme}>
                   <textarea
                     style={{
                       ...inputStyle,
@@ -776,13 +791,14 @@ function ProfilePage() {
               padding: "20px 24px",
             }}
           >
-            <ReadRow label="Phone" icon="📞" value={profile.phone} />
-            <ReadRow label="State" icon="📍" value={profile.state} />
-            <ReadRow label="Occupation" icon="💼" value={profile.occupation} />
-            <ReadRow label="Gender" icon="⚧" value={profile.gender} />
+            <ReadRow label="Phone" icon="📞" value={profile.phone} theme={theme} />
+            <ReadRow label="State" icon="📍" value={profile.state} theme={theme} />
+            <ReadRow label="Occupation" icon="💼" value={profile.occupation} theme={theme} />
+            <ReadRow label="Gender" icon="⚧" value={profile.gender} theme={theme} />
             <ReadRow
               label="Birthday"
               icon="🎂"
+              theme={theme}
               value={
                 profile.dob
                   ? new Date(profile.dob).toLocaleDateString("en-NG", {
@@ -796,6 +812,7 @@ function ProfilePage() {
             <ReadRow
               label="Visibility"
               icon="🔒"
+              theme={theme}
               value={profile.visibility === "public" ? "Public" : "Private"}
             />
           </div>

@@ -73,7 +73,7 @@ function SplashScreen({ onDone }) {
             marginBottom: "6px",
           }}
         >
-          PriceWatch
+          PriceShare
         </div>
         <div
           style={{
