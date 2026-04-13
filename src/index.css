@@ -14,10 +14,33 @@ body {
 
 /* ── DESKTOP: push content right of the fixed sidebar ── */
 @media (min-width: 769px) {
-  main {
+  /* Regular app pages — constrained width for comfortable reading */
+  main:not(.admin-main) {
     margin-left: 220px !important;
     padding: 32px 40px !important;
     max-width: 900px !important;
+  }
+
+  /* Admin pages — full width for data tables */
+  main.admin-main {
+    margin-left: 220px !important;
+    padding: 32px 28px !important;
+    max-width: none !important;
+    width: calc(100% - 220px) !important;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 768px) {
+  main.admin-main {
+    margin-left: 0 !important;
+    padding-top: 68px !important;  /* space for mobile topbar */
+    padding-bottom: 80px !important; /* space for mobile bottom nav */
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box;
   }
 }
 

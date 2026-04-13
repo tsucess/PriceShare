@@ -85,7 +85,7 @@ function AdminUsers() {
   return (
     <div style={{ display:'flex', minHeight:'100vh', background:theme.bg, fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
       <AdminSidebar />
-      <main style={{ flex:1, padding:'32px 24px', overflowX:'hidden' }}>
+      <main className="admin-main" style={{ flex:1, overflowX:'hidden' }}>
 
         <div style={{ marginBottom:'24px' }}>
           <div style={{ fontSize:'10px', color:theme.textMuted, letterSpacing:'3px', textTransform:'uppercase', marginBottom:'4px' }}>Admin Panel</div>

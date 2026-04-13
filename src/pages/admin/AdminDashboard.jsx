@@ -49,7 +49,7 @@ function AdminDashboard() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: theme.bg, fontFamily: "'DM Sans','Segoe UI',sans-serif" }}>
       <AdminSidebar />
-      <main style={{ flex: 1, padding: '32px 24px', overflowX: 'hidden' }}>
+      <main className="admin-main" style={{ flex: 1, overflowX: 'hidden' }}>
 
         {/* Header */}
         <div style={{ marginBottom: '28px' }}>

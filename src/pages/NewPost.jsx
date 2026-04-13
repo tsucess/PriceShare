@@ -243,7 +243,16 @@ function NewPost() {
               style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '14px', fontWeight: 800, background: `linear-gradient(135deg, ${theme.accent}, #00c853)`, color: '#0a0a0f', border: 'none', boxShadow: `0 4px 20px ${theme.accent}40` }}
             >See it in the Feed 🚀</HapticButton>
             <HapticButton
-              onClick={() => { setSubmitted(false); setForm({ product: '', price: '', category: '', market: '', state: '', description: '', location: '' }); setPreview(null); }}
+              onClick={() => {
+                setSubmitted(false);
+                setForm({ product: '', price: '', category: '', market: '', state: '', description: '', location: '', coords: null });
+                setPreview(null);
+                setImageFile(null);
+                setImageDataUrl(null);
+                setSelectedTags([]);
+                setFieldErrors({});
+                setStateWarning('');
+              }}
               style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '14px', fontWeight: 700, background: 'transparent', color: theme.textMuted, border: `1px solid ${theme.cardBorder}` }}
             >Submit Another Report</HapticButton>
           </div>
@@ -280,7 +289,7 @@ function NewPost() {
                   <img src={preview} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
                 <HapticButton
-                  onClick={() => setPreview(null)}
+                  onClick={() => { setPreview(null); setImageFile(null); setImageDataUrl(null); }}
                   style={{ padding: '10px 24px', borderRadius: '10px', fontSize: '13px', fontWeight: 600, background: 'rgba(255,77,109,0.1)', color: '#ff4d6d', border: '1px solid rgba(255,77,109,0.3)', width: '100%' }}
                 >Remove Photo</HapticButton>
               </>
