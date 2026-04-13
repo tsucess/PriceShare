@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-import { uploadImage, createPost } from '../services/api';
+import { uploadImage, createPost, getCategories, getTags } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import HapticButton from '../components/HapticButton';
+import CameraCapture from '../components/CameraCapture';
 
 const MAX_DESC = 200;
 
@@ -17,10 +18,18 @@ const nigerianStates = [
   'Taraba','Yobe','Zamfara'
 ];
 
-const categories = [
-  '🌾 Food & Groceries','⛽ Fuel & Energy','💊 Medications & Healthcare',
-  '🧱 Building Materials','👗 Clothing & Fashion','📱 Electronics',
-  '🚌 Transport','🧴 Household Items','🐔 Meat & Poultry','🥦 Vegetables & Fruits'
+// Fallback categories used if API hasn't loaded yet
+const FALLBACK_CATS = [
+  { id: null, name: 'Food & Groceries', emoji: '🌾' },
+  { id: null, name: 'Fuel & Energy',    emoji: '⛽' },
+  { id: null, name: 'Meat & Poultry',   emoji: '🐔' },
+  { id: null, name: 'Vegetables & Fruits', emoji: '🥦' },
+  { id: null, name: 'Medications & Healthcare', emoji: '💊' },
+  { id: null, name: 'Building Materials', emoji: '🧱' },
+  { id: null, name: 'Clothing & Fashion', emoji: '👗' },
+  { id: null, name: 'Electronics',      emoji: '📱' },
+  { id: null, name: 'Transport',        emoji: '🚌' },
+  { id: null, name: 'Household Items',  emoji: '🧴' },
 ];
 
 function NewPost() {
@@ -28,17 +37,27 @@ function NewPost() {
   const theme = useTheme();
   const { showToast } = useToast();
   const { user } = useAuth();
-  const [preview, setPreview] = useState(null);
-  const [imageFile, setImageFile] = useState(null);
-  const [locating, setLocating] = useState(false);
+  const [preview, setPreview]         = useState(null);
+  const [imageFile, setImageFile]     = useState(null);
+  const [imageDataUrl, setImageDataUrl] = useState(null); // from CameraCapture
+  const [showCamera, setShowCamera]   = useState(false);
+  const [locating, setLocating]       = useState(false);
   const [stateWarning, setStateWarning] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted]     = useState(false);
+  const [submitting, setSubmitting]   = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [apiCategories, setApiCategories] = useState(FALLBACK_CATS);
+  const [apiTags, setApiTags]         = useState([]);
+  const [selectedTags, setSelectedTags] = useState([]); // array of tag ids
   const [form, setForm] = useState({
     product: '', price: '', category: '', market: '',
     state: '', description: '', location: '', coords: null
   });
+
+  useEffect(() => {
+    getCategories().then(r => { if (r.data?.length) setApiCategories(r.data); }).catch(() => {});
+    getTags().then(r => setApiTags(r.data ?? [])).catch(() => {});
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -50,8 +69,23 @@ function NewPost() {
     const file = e.target.files[0];
     if (file) {
       setImageFile(file);
+      setImageDataUrl(null);
       setPreview(URL.createObjectURL(file));
     }
+  };
+
+  const handleCameraCapture = (dataUrl) => {
+    setImageDataUrl(dataUrl);
+    setImageFile(null);
+    setPreview(dataUrl);
+    setShowCamera(false);
+    setFieldErrors(p => ({ ...p, image: '' }));
+  };
+
+  const toggleTag = (id) => {
+    setSelectedTags(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    );
   };
 
   const handleDetectLocation = () => {
@@ -118,10 +152,16 @@ function NewPost() {
     setSubmitting(true);
 
     try {
-      // Step 1: upload image (only if a file was picked)
+      // Step 1: upload image — from gallery file or camera dataUrl
       let imageUrl = null;
       if (imageFile) {
         const uploadRes = await uploadImage(imageFile);
+        imageUrl = uploadRes.data?.url ?? uploadRes.data?.image_url ?? null;
+      } else if (imageDataUrl) {
+        // Convert base64 dataUrl to Blob then upload
+        const blob = await fetch(imageDataUrl).then(r => r.blob());
+        const cameraFile = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
+        const uploadRes = await uploadImage(cameraFile);
         imageUrl = uploadRes.data?.url ?? uploadRes.data?.image_url ?? null;
       }
 
@@ -140,6 +180,7 @@ function NewPost() {
         description: form.description,
         image_url: imageUrl,
         coords: form.coords,
+        tags: selectedTags,
       });
 
       setSubmitted(true);
@@ -252,10 +293,13 @@ function NewPost() {
                 </div>
                 <ErrorMsg field="image" />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
-                  <label htmlFor="camera-capture" style={{ display: 'block', textAlign: 'center', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, background: `linear-gradient(135deg, ${theme.accent}, #00c853)`, color: '#0a0a0f', cursor: 'pointer' }}>
+                  {/* Live camera button — uses getUserMedia */}
+                  <HapticButton
+                    onClick={() => setShowCamera(true)}
+                    style={{ display: 'block', textAlign: 'center', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, background: `linear-gradient(135deg, ${theme.accent}, #00c853)`, color: '#0a0a0f', cursor: 'pointer', border: 'none', width: '100%' }}
+                  >
                     📸 Take a Photo
-                  </label>
-                  <input id="camera-capture" type="file" accept="image/*" capture="environment" onChange={handleImageChange} style={{ display: 'none' }} />
+                  </HapticButton>
                   <label htmlFor="image-upload" style={{ display: 'block', textAlign: 'center', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, background: 'transparent', color: theme.accent, border: `1px solid ${theme.accent}50`, cursor: 'pointer' }}>
                     🖼️ Upload from Gallery
                   </label>
@@ -288,7 +332,11 @@ function NewPost() {
                 <label style={labelStyle}>Category *</label>
                 <select name="category" value={form.category} onChange={(e) => { handleChange(e); setFieldErrors((p) => ({ ...p, category: '' })); }} style={{ ...inputStyle, borderColor: errBorder('category') }}>
                   <option value="">Select category</option>
-                  {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                  {apiCategories.map(c => (
+                    <option key={c.id ?? c.name} value={c.name}>
+                      {c.emoji ? `${c.emoji} ${c.name}` : c.name}
+                    </option>
+                  ))}
                 </select>
                 <ErrorMsg field="category" />
               </div>
@@ -394,6 +442,34 @@ function NewPost() {
               )}
             </div>
 
+            {/* TAGS */}
+            {apiTags.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <label style={labelStyle}>Tags <span style={{ fontWeight:400, textTransform:'none', fontSize:10 }}>(optional)</span></label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {apiTags.map(tag => {
+                    const active = selectedTags.includes(tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => toggleTag(tag.id)}
+                        style={{
+                          padding: '5px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 700,
+                          border: `1px solid ${active ? tag.color : tag.color + '50'}`,
+                          background: active ? tag.color + '20' : 'transparent',
+                          color: active ? tag.color : theme.textMuted,
+                          cursor: 'pointer', transition: 'all 0.15s',
+                        }}
+                      >
+                        {active ? '✓ ' : ''}{tag.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* BUTTONS */}
             <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
               <HapticButton
@@ -410,6 +486,15 @@ function NewPost() {
           </div>
         </div>
       </main>
+
+      {/* Camera Capture Overlay */}
+      {showCamera && (
+        <CameraCapture
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
+
     <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );

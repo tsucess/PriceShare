@@ -9,6 +9,7 @@ import {
   PlusSquare,
   BarChart2,
   Settings,
+  Shield,
 } from "lucide-react";
 
 const navItems = [
@@ -181,6 +182,23 @@ function Sidebar() {
             );
           })}
         </nav>
+
+        {/* ADMIN LINK — only for admin users */}
+        {user?.role === "admin" && (
+          <div
+            onClick={() => handleNavClick("/admin")}
+            style={{
+              display: "flex", alignItems: "center", gap: "10px",
+              padding: "10px 14px", borderRadius: "10px", cursor: "pointer",
+              fontSize: "12px", fontWeight: 700, marginBottom: "8px",
+              background: "rgba(0,230,118,0.08)", border: "1px solid rgba(0,230,118,0.25)",
+              color: "#00e676",
+            }}
+          >
+            <Shield size={15} strokeWidth={2.5} />
+            Admin Panel
+          </div>
+        )}
 
         {/* PROFILE */}
         <div

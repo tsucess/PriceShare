@@ -14,6 +14,13 @@ import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 import SplashScreen from './components/SplashScreen';
 import OnboardingSlides from './components/OnboardingSlides';
+import AdminRoute from './components/AdminRoute';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminUsers from './pages/admin/AdminUsers';
+import AdminPosts from './pages/admin/AdminPosts';
+import AdminComments from './pages/admin/AdminComments';
+import AdminAlerts from './pages/admin/AdminAlerts';
+import AdminCategories from './pages/admin/AdminCategories';
 // import GovReport from './pages/GovReport';
 
 // Scrolls window to top on every route change
@@ -47,6 +54,15 @@ function AppContent({ showOnboarding, setShowOnboarding }) {
         <Route path="/post/:id"  element={<PostDetail />} />
         <Route path="/profile"    element={<ProfilePage />} />
         {/* <Route path="/report" element={<GovReport />} /> */}
+
+        {/* ── Admin Routes ─────────────────────────────────────── */}
+        <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+        <Route path="/admin/users"    element={<AdminRoute><AdminUsers /></AdminRoute>} />
+        <Route path="/admin/posts"    element={<AdminRoute><AdminPosts /></AdminRoute>} />
+        <Route path="/admin/comments" element={<AdminRoute><AdminComments /></AdminRoute>} />
+        <Route path="/admin/alerts"      element={<AdminRoute><AdminAlerts /></AdminRoute>} />
+        <Route path="/admin/categories"  element={<AdminRoute><AdminCategories /></AdminRoute>} />
+
         <Route path="*"           element={<NotFoundPage />} />
       </Routes>
     </>

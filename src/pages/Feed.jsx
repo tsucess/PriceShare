@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
-import { getPosts, likePost, votePost, getDashboard, getAlerts } from '../services/api';
+import { getPosts, likePost, votePost, getDashboard, getAlerts, getCategories } from '../services/api';
 import Sidebar from '../components/Sidebar';
 import SkeletonCard from '../components/SkeletonCard';
 import BottomSheet from '../components/BottomSheet';
@@ -27,7 +27,8 @@ const allStates = [
   'Nasarawa','Niger','Ogun','Ondo','Osun','Oyo','Plateau','Rivers','Sokoto',
   'Taraba','Yobe','Zamfara',
 ];
-const allCategories = ['All Categories', 'Food & Groceries', 'Vegetables', 'Meat & Poultry', 'Fuel & Energy', 'Healthcare'];
+// allCategories is now loaded dynamically from the API; this is the fallback
+const STATIC_CATEGORIES = ['All Categories', 'Food & Groceries', 'Vegetables', 'Meat & Poultry', 'Fuel & Energy', 'Healthcare'];
 const suggestions = ['Garri', 'Rice', 'Tomatoes', 'Petrol', 'Chicken', 'Paracetamol'];
 
 function getRelativeTime(dateStr) {
@@ -72,6 +73,7 @@ function Feed() {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filterState, setFilterState] = useState('All States');
   const [filterCategory, setFilterCategory] = useState('All Categories');
+  const [allCategories, setAllCategories] = useState(STATIC_CATEGORIES);
   const [sortBy, setSortBy] = useState('newest');
   const [showFilters, setShowFilters] = useState(false);
   const [touchStart, setTouchStart] = useState(null);
@@ -92,6 +94,18 @@ function Feed() {
       showToast('Could not load feed. Retrying...', 'warning');
     }
   }, [filterState, filterCategory, search, sortBy, showToast]);
+
+  // Load dynamic categories from API once
+  useEffect(() => {
+    getCategories()
+      .then(r => {
+        const cats = r.data ?? [];
+        if (cats.length > 0) {
+          setAllCategories(['All Categories', ...cats.map(c => c.name)]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Fetch dashboard stats + alerts once on mount
   useEffect(() => {
@@ -400,7 +414,16 @@ function Feed() {
                   </div>
                   <div style={{ padding: '14px' }}>
                     <h3 style={{ fontSize: '15px', fontWeight: 700, color: theme.text, margin: '0 0 6px' }}>{post.product}</h3>
-                    <p style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '4px' }}>📍 {post.market || post.location}, {post.state}</p>
+                    <p style={{ fontSize: '12px', color: theme.textMuted, marginBottom: '6px' }}>📍 {post.market || post.location}, {post.state}</p>
+                    {post.tags?.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: '8px' }}>
+                        {post.tags.map(tag => (
+                          <span key={tag.id} style={{ fontSize: '10px', fontWeight: 700, padding: '2px 9px', borderRadius: '20px', background: (tag.color || '#00b0ff') + '20', color: tag.color || '#00b0ff', border: `1px solid ${(tag.color || '#00b0ff')}50` }}>
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                       <span style={{ fontSize: '11px', background: theme.pill, color: theme.pillText, padding: '3px 10px', borderRadius: '6px' }}>👤 {post.user?.name || post.user || 'Anonymous'}</span>
                       <span style={{ fontSize: '11px', color: theme.textDim }}>🕐 {getRelativeTime(post.created_at || post.date)}</span>

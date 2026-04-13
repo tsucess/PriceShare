@@ -62,5 +62,55 @@ export const getAlerts    = (params) => api.get('/alerts', { params });
 export const getUser      = (id) => api.get(`/users/${id}`);
 export const getUserPosts = (id) => api.get(`/users/${id}/posts`);
 
+// ── Public Taxonomy ─────────────────────────────────────────────────────────
+export const getCategories = () => api.get('/categories');
+export const getTags       = () => api.get('/tags');
+
+// ── Admin ──────────────────────────────────────────────────────────────────
+export const adminGetStats = () => api.get('/admin/stats');
+
+// Admin – Users
+export const adminListUsers       = (params)     => api.get('/admin/users', { params });
+export const adminShowUser        = (id)         => api.get(`/admin/users/${id}`);
+export const adminEditUser        = (id, data)   => api.put(`/admin/users/${id}`, data);
+export const adminBanUser         = (id, reason) => api.post(`/admin/users/${id}/ban`, { reason });
+export const adminUnbanUser       = (id)         => api.post(`/admin/users/${id}/unban`);
+export const adminPromoteUser     = (id)         => api.post(`/admin/users/${id}/promote`);
+export const adminDemoteUser      = (id)         => api.post(`/admin/users/${id}/demote`);
+export const adminShadowBanUser   = (id)         => api.post(`/admin/users/${id}/shadow-ban`);
+export const adminUnshadowBanUser = (id)         => api.post(`/admin/users/${id}/unshadow-ban`);
+export const adminDeleteUser      = (id)         => api.delete(`/admin/users/${id}`);
+
+// Admin – Posts
+export const adminListPosts  = (params)    => api.get('/admin/posts', { params });
+export const adminEditPost   = (id, data)  => api.put(`/admin/posts/${id}`, data);
+export const adminFlagPost   = (id)        => api.post(`/admin/posts/${id}/flag`);
+export const adminUnflagPost = (id)        => api.post(`/admin/posts/${id}/unflag`);
+export const adminHidePost   = (id, reason) => api.post(`/admin/posts/${id}/hide`, { reason });
+export const adminUnhidePost = (id)        => api.post(`/admin/posts/${id}/unhide`);
+export const adminDeletePost = (id)        => api.delete(`/admin/posts/${id}`);
+
+// Admin – Comments
+export const adminListComments  = (params) => api.get('/admin/comments', { params });
+export const adminDeleteComment = (id)     => api.delete(`/admin/comments/${id}`);
+
+// Admin – Price Alerts
+export const adminListAlerts   = (params)     => api.get('/admin/alerts', { params });
+export const adminCreateAlert  = (data)       => api.post('/admin/alerts', data);
+export const adminUpdateAlert  = (id, data)   => api.put(`/admin/alerts/${id}`, data);
+export const adminDeleteAlert  = (id)         => api.delete(`/admin/alerts/${id}`);
+
+// Admin – Categories
+export const adminListCategories   = ()          => api.get('/admin/categories');
+export const adminCreateCategory   = (data)      => api.post('/admin/categories', data);
+export const adminUpdateCategory   = (id, data)  => api.put(`/admin/categories/${id}`, data);
+export const adminDeleteCategory   = (id)        => api.delete(`/admin/categories/${id}`);
+
+// Admin – Tags
+export const adminListTags   = ()          => api.get('/admin/tags');
+export const adminCreateTag  = (data)      => api.post('/admin/tags', data);
+export const adminUpdateTag  = (id, data)  => api.put(`/admin/tags/${id}`, data);
+export const adminDeleteTag  = (id)        => api.delete(`/admin/tags/${id}`);
+
 export default api;
 
